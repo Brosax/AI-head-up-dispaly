@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Headroom · 本地 AI 额度桥接",
+  "version": "0.6.6",
+  "minimum_chrome_version": "116",
+  "description": "从 Claude、Grok、Gemini 的官方用量页面自动读取额度，仅发送到本机 Headroom。",
+  "permissions": ["storage", "alarms"],
+  "host_permissions": ["https://claude.ai/*", "https://platform.claude.com/*", "https://grok.com/*", "https://gemini.google.com/*", "http://127.0.0.1:4317/*"],
+  "background": { "service_worker": "worker.js" },
+  "action": { "default_popup": "popup.html", "default_title": "Headroom 自动额度" },
+  "content_scripts": [{
+    "matches": ["http://127.0.0.1:4317/*"],
+    "js": ["bridge.js"],
+    "run_at": "document_end"
+  }, {
+    "matches": ["https://claude.ai/*", "https://grok.com/*", "https://gemini.google.com/usage*"],
+    "js": ["parser.js", "content.js"],
+    "run_at": "document_start"
+  }, {
+    "matches": ["https://platform.claude.com/*"],
+    "js": ["claude-api.js", "content.js"],
+    "run_at": "document_start"
+  }]
+}

@@ -1,0 +1,4 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>Headroom 自动采集</title><link rel="stylesheet" href="popup.css"></head><body>
+<small>HEADROOM / LOCAL BRIDGE</small><h1>额度自动归拢。</h1><p>点击面板「同步额度」或下方「立即采集」，后台读取订阅用量页和 Claude API 账单页。平时不定时采集，完成后自动关闭采集标签页。</p>
+<form id="pair"><label for="token">一次性设置：粘贴面板配对码</label><input id="token" type="password" autocomplete="off" placeholder="在面板「接入与数据」获取" required><button>配对并开启</button></form>
+<div id="status" role="status"></div><div class="actions"><button id="refresh" type="button">立即采集</button><button id="pause" type="button">暂停</button></div><a href="http://127.0.0.1:4317/" target="_blank">打开本地面板 ↗</a><p class="note">不读取 Cookie、密码或对话。仅保存额度、重置/到期时间、适用范围和经过散列处理的账户标识。暂停后，当前采集可能继续完成。</p><script src="popup.js"></script></body></html>

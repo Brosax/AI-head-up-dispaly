@@ -1,0 +1,15 @@
+data/
+local-config.json
+node_modules/
+*.log
+artifacts/
+.env
+.env.*
+!.env.example
+*.exe
+*.lnk
+*.zip
+*.dpapi
+*.pid
+docs/VALIDATION.md
+design-qa.md

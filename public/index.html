@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f3f2ed"><title>Headroom · AI 余量</title>
+  <link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/api-balances.css">
+  <link rel="stylesheet" href="/theme.css"><script src="/theme.js"></script>
+</head>
+<body>
+  <aside class="rail" aria-label="快捷导航">
+    <a class="brand-mark" href="/" aria-label="Headroom 首页"><span></span><span></span><span></span></a>
+    <div class="rail-line"></div>
+    <button class="rail-button active" data-view="overview" aria-label="额度总览" title="额度总览">◫</button>
+    <button class="rail-button" data-view="relationships" aria-label="共享关系" title="共享关系">⤢</button>
+    <button class="rail-button" data-view="connections" aria-label="接入与数据" title="接入与数据">⊕</button>
+    <span class="rail-bottom">LOCAL<br>FIRST</span>
+  </aside>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="wordmark" href="/">headroom<span> / AI 余量</span></a>
+      <div class="top-actions"><select class="theme-select" data-theme-select aria-label="外观"><option value="system">跟随系统</option><option value="light">亮色</option><option value="dark">暗色</option></select><span class="local-status"><i></i> 本地面板</span><button id="demo-toggle" class="text-button">查看示例</button><span id="clock" class="clock"></span></div>
+    </header>
+    <div id="demo-banner" class="demo-banner" hidden>示例模式 · 以下数值均为演示，不代表你的账户，操作不会写入真实数据。<button id="exit-demo">返回真实数据 ↗</button></div>
+    <main>
+      <section class="page-heading">
+        <div><div class="eyebrow">YOUR AI, IN VIEW</div><h1>把余量，留在视线里<span>。</span></h1><p>四个订阅，一个面板。共享的额度，只算一次。</p></div>
+        <div class="heading-actions"><button id="manual-open" class="button secondary">＋ 网页额度</button><button id="refresh" class="button primary"><span id="refresh-icon">↻</span><span id="refresh-label">同步额度</span></button></div>
+      </section>
+      <section class="overview-strip" aria-label="额度概况" id="overview-stats"></section>
+      <div class="section-nav"><nav aria-label="视图"><button class="tab active" data-view="overview">额度总览</button><button class="tab" data-view="relationships">共享关系</button><button class="tab" data-view="connections">接入与数据</button></nav><span class="timezone-label">时间按 Europe/Madrid 显示</span></div>
+      <section id="view-overview" class="view">
+        <div class="dashboard-layout">
+          <div>
+            <div class="cards-heading"><span class="eyebrow">SUBSCRIPTIONS <span class="muted">/ 04</span></span><div class="filters" aria-label="筛选订阅"><button class="filter active" data-filter="all">全部</button><button class="filter" data-filter="reset">临近重置</button><button class="filter" data-filter="pending">待更新</button></div></div>
+            <div id="provider-cards" class="provider-grid" aria-live="polite"><div class="loading">正在读取本地额度…</div></div>
+            <section id="api-balances" aria-label="API 账户余额" aria-live="polite"></section>
+          </div>
+          <aside class="insights">
+            <section class="signal-card"><div class="eyebrow">A LITTLE HEADROOM</div><div class="signal-orbit" aria-hidden="true"><span>↗</span><i></i></div><h2>给下一项任务<br>留一点余量。</h2><p>把合适的任务，交给还有空间的工具。</p><div id="recommendations"></div></section>
+            <section class="reset-card"><div class="card-section-title"><h3>接下来的重置</h3><span>24h</span></div><div id="reset-list"></div></section>
+            <div class="quiet-note"><span>◎</span><p>相同额度池只保留最新读数。不同平台、周期的百分比不相加。</p></div>
+          </aside>
+        </div>
+      </section>
+      <section id="view-relationships" class="view" hidden><div class="view-intro"><h2>多个入口，同一个额度池。</h2><p>箭头表示已经确认的共享关系。周期是限制条件，不能互相相加。</p></div><div id="relationships"></div></section>
+      <section id="view-connections" class="view" hidden>
+        <div class="view-intro"><h2>每个数字，都有出处。</h2><p>数据保存在这台电脑。网页手动记录与自动读取会明确区分。</p></div>
+        <div class="connection-grid">
+          <article class="connection-card"><span class="eyebrow">01 / AUTOMATIC</span><h3>Tokscale 本地采集</h3><p>读取 Codex、Claude 和 Grok 的订阅额度。需要原工具已有有效登录；未返回的平台保持未知。</p><code>tokscale usage --json</code><div id="sync-status"></div><button class="button primary" id="connection-sync">同步额度 ↗</button></article>
+          <article class="connection-card"><span class="eyebrow">02 / FILE</span><h3>导入额度快照</h3><p>选择 Tokscale 的 usage JSON，并标记实际采集时间。文件中的 Token 消耗不会被当作额度。</p><button class="button secondary" id="import-open">选择 JSON 文件 ↗</button><input type="file" id="import-file" accept="application/json,.json" hidden></article>
+          <article class="connection-card"><span class="eyebrow">03 / BROWSER BRIDGE</span><h3>Claude · Grok · Gemini 自动采集</h3><p>安装并配对一次，之后点击「同步额度」即在后台读取官方用量页。网页版作为这些平台的主来源，共享额度只显示一次。</p><div id="browser-status"></div><button class="button primary" id="browser-pair">获取配对码 ↗</button><details><summary>一次性安装步骤</summary><p>在 Edge 扩展管理页打开开发人员模式，选择「加载解压缩的扩展」，选中项目里的 extension 文件夹。然后点击扩展图标，粘贴配对码并开启。</p><p class="fine-print">仅授予 Claude、Grok、Gemini 和 127.0.0.1 的访问权限，不读取 Cookie、密码或对话。采集会打开并关闭专用后台标签页。</p></details><button class="text-button" id="connection-manual">备用：手动核对</button></article>
+          <article class="connection-card"><span class="eyebrow">04 / ON DEMAND</span><h3>你点击，后台更新。</h3><p>点击「同步额度」会同时请求本地 Codex 与浏览器额度。网页采集使用不激活的临时标签，完成后关闭，保持当前页面不变。</p><p class="fine-print">没有定时采集。超过 15 分钟或经过重置时间的读数会被标记，下一次点击后重新核对。</p></article>
+        </div>
+        <div class="sources-note">共享规则参考：<a href="https://support.claude.com/en/articles/11145838-use-claude-code-with-your-pro-or-max-plan" target="_blank" rel="noopener noreferrer">Claude 订阅说明 ↗</a><a href="https://github.com/junhoyeo/tokscale#subscription-usage" target="_blank" rel="noopener noreferrer">Tokscale 数据说明 ↗</a></div>
+      </section>
+      <footer><span><i></i> HEADROOM <span class="muted">/ 私人 AI 额度面板</span></span><span id="footer-status">正在读取…</span></footer>
+    </main>
+  </div>
+  <dialog id="manual-dialog">
+    <form id="manual-form">
+      <div class="dialog-heading"><div><span class="eyebrow">WEB CHECK-IN</span><h2>记录网页额度</h2></div><button type="button" class="close-button" data-close aria-label="关闭">×</button></div>
+      <p class="dialog-description">从官方页面抄录剩余百分比。共享额度请选择已有池，避免另建一条。</p>
+      <div class="form-grid"><label>订阅<select name="provider" id="manual-provider"></select></label><label>关联额度池<select name="targetPoolId" id="manual-target"><option value="">新建独立额度池</option></select></label></div>
+      <div id="manual-new-fields"><div class="form-grid"><label>账户标识<input name="accountLabel" maxlength="60" placeholder="例如：我的 Google 账户"></label><label>功能范围<input name="scopeLabel" maxlength="80" placeholder="例如：Gemini Apps"></label></div><label>额度周期 / 模型范围<input name="window" maxlength="80" placeholder="例如：每周 · 全部模型"></label></div>
+      <label id="shared-confirm-row" class="confirm-row" hidden><input type="checkbox" name="confirmShared"> 我已核对：这是同一账户、同一功能范围、同一额度周期。</label>
+      <div class="form-grid"><label>剩余百分比 <span class="muted">（不是已使用）</span><div class="input-unit"><input name="remaining" type="number" min="0" max="100" step="0.1" required placeholder="例如 68"><span>%</span></div></label><label>重置时间 <span class="muted">（可留空）</span><input name="resetsAt" type="datetime-local"></label></div>
+      <label>实际查看时间<input name="observedAt" type="datetime-local" required></label><p class="fine-print">输入框使用本机时区；保存后统一显示马德里时间。</p>
+      <p id="manual-error" class="form-error" role="alert"></p><div class="dialog-footer"><button type="button" class="button secondary" data-close>取消</button><button type="submit" class="button primary">保存额度</button></div>
+    </form>
+  </dialog>
+  <dialog id="import-dialog"><form id="import-form"><div class="dialog-heading"><div><span class="eyebrow">IMPORT SNAPSHOT</span><h2>导入额度快照</h2></div><button type="button" class="close-button" data-close aria-label="关闭">×</button></div><p id="import-filename" class="dialog-description"></p><label>此文件实际采集时间<input id="import-time" type="datetime-local" required></label><p class="fine-print">旧文件不会因为今天导入就变成实时数据。输入框使用本机时区。</p><p id="import-error" class="form-error" role="alert"></p><div class="dialog-footer"><button type="button" class="button secondary" data-close>取消</button><button type="submit" class="button primary">导入</button></div></form></dialog>
+  <dialog id="detail-dialog"><div id="detail-content"></div></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

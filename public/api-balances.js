@@ -1,0 +1,33 @@
+import {request} from './client.js';
+const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const date=value=>new Intl.DateTimeFormat('zh-CN',{timeZone:'Europe/Madrid',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(value));
+function compactBalances(deepseek,claude){
+  const deep=`<article class="balance-row" data-provider="deepseek"><button class="balance-name" data-api-config title="配置 DeepSeek API" aria-label="配置 DeepSeek API">DeepSeek</button><div class="balance-values currencies">${deepseek.balances?.length?deepseek.balances.map(b=>`<div title="${escape(deepseek.error||'')}"><span class="balance-caption">${escape(b.currency)} 余额</span><strong class="balance-value">${b.currency==='CNY'?'¥':'$'} ${escape(b.total)}</strong>${deepseek.freshness==='stale'?'<span class="balance-note">上次读数</span>':''}</div>`).join(''):'<p class="empty">点击名称连接 API</p>'}</div></article>`;
+  const accounts=claude.accounts||[];
+  return deep+`<article class="balance-row" data-provider="claude-api"><a class="balance-name" href="https://platform.claude.com/settings/billing" target="_blank" rel="noopener noreferrer" title="打开 Claude API 官方账单">Claude API</a><div class="balance-values">${accounts.length?accounts.map(a=>`${accounts.length>1?`<div class="balance-note">${escape(a.accountLabel)}</div>`:''}${a.promotional.map(g=>`<div title="${escape(g.appliesTo)}"><div class="balance-caption"><span>赠送 · USD</span><span>${g.expiresOn?escape(g.expiresOn.slice(5))+' 到期（UTC）':escape(g.expiresLabel||'到期待确认')}</span></div><strong class="balance-value">$ ${escape(g.remaining)}<span class="balance-original">/ ${escape(g.granted)}</span></strong></div>`).join('')}${a.promotional.length?'':'<p class="empty">暂无赠送额度</p>'}${a.freshness==='stale'?'<span class="balance-note">上次读数</span>':''}`).join(''):`<p class="empty">${claude.status==='collecting'?'正在读取账单文字…':claude.error?'暂未读到 · 点击刷新重试':'等待首次读取'}</p>`}</div></article>`;
+}
+export function mountApiBalances(selector,{compact=false,disabled=()=>false,onUpdated=()=>{}}={}){
+  const root=document.querySelector(selector);
+  const dialog=document.createElement('dialog');dialog.className='api-dialog';
+  dialog.innerHTML='<form><div class="api-dialog-title"><h2>连接 DeepSeek API</h2><button type="button" data-close aria-label="关闭">×</button></div><p>填写一次已有 API Key。仅向 DeepSeek 官方查询余额，不调用模型。密钥在本机使用 Windows 当前用户加密保护。</p><label>DeepSeek API Key<input name="key" type="password" autocomplete="off" spellcheck="false" minlength="16" maxlength="256" required placeholder="仅在这里填写，不要发送到聊天"></label><p class="api-form-error" role="alert"></p><div class="api-form-actions"><a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer">官方 API Keys ↗</a><button type="submit">连接并读取余额</button></div></form>';
+  document.body.append(dialog);
+  dialog.querySelector('[data-close]').onclick=()=>dialog.close();
+  dialog.addEventListener('close',()=>{dialog.querySelector('input').value='';});
+  dialog.querySelector('form').onsubmit=async event=>{
+    event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type="submit"]'),input=form.elements.key;
+    const key=input.value;input.value='';button.disabled=true;dialog.querySelector('.api-form-error').textContent='正在向官方验证密钥并读取余额…';
+    try{const value=await request('/api/deepseek/connect',{key});onUpdated(value);dialog.close();}
+    catch(error){dialog.querySelector('.api-form-error').textContent=error.message;}
+    finally{button.disabled=false;}
+  };
+  root.addEventListener('click',event=>{if(event.target.closest('[data-api-config]')&&!disabled()){dialog.querySelector('.api-form-error').textContent='';dialog.showModal();}});
+  return {render(value={},claude={}){
+    value||={};const balances=value.balances||[],collecting=value.status==='collecting';
+    const state=collecting?'后台读取中':value.error?'更新失败 · 保留上次余额':value.observedAt?`${date(value.observedAt)} 更新`:'尚未接入';
+    root.className=`api-section ${compact?'api-compact':''}`;
+    if(compact){root.innerHTML=compactBalances(value,claude);return;}
+    root.innerHTML=`<div class="api-section-label"><span>API BALANCE / API 余额</span><span>独立于订阅额度</span></div><article class="api-balance-card"><div class="api-heading"><h2><span>≈</span> DeepSeek</h2><small class="${value.error?'api-error':''}">${escape(state)}</small></div>${balances.length?balances.map(balance=>`<div class="api-currency ${value.freshness==='stale'?'api-stale':''}"><div class="api-total"><span>可用余额 · ${escape(balance.currency)}</span><strong>${balance.currency==='CNY'?'¥':'$'} ${escape(balance.total)}</strong></div><div class="api-breakdown"><span>充值 ${escape(balance.toppedUp)}</span><span>赠送 ${escape(balance.granted)}</span></div></div>`).join(''):'<p class="api-empty">连接后自动显示账户余额，无需手动记录。</p>'}<div class="api-bottom"><small>${value.isAvailable===true?'API 可用':value.isAvailable===false?'余额不足以调用 API':'按实际币种显示'}${value.freshness==='stale'?' · 上次读数':''}</small><button type="button" data-api-config ${disabled()?'disabled':''}>${value.configured?'更换密钥':'连接 API'} ↗</button></div></article>`;
+    const claudeState=claude.status==='collecting'?'后台读取中':claude.error?'读取失败 · 保留上次余额':claude.observedAt?`${date(claude.observedAt)} 更新`:'等待扩展采集';
+    root.insertAdjacentHTML('beforeend',`<article class="api-balance-card" data-api="claude"><div class="api-heading"><h2>Claude API</h2><small class="${claude.error?'api-error':''}">${escape(claudeState)}</small></div>${claude.accounts?.length?claude.accounts.map(account=>`<div class="api-account ${account.freshness==='stale'?'api-stale':''}">${claude.accounts.length>1?`<p class="api-empty">${escape(account.accountLabel)}</p>`:''}${account.promotional.map(grant=>`<div class="api-currency"><div class="api-total"><span>赠送余额 · USD</span><strong>$ ${escape(grant.remaining)}</strong></div><div class="api-breakdown"><span>原额度 $${escape(grant.granted)}</span><span>${grant.expiresOn?escape(grant.expiresOn)+' 到期（UTC）':escape(grant.expiresLabel||'到期时间待确认')}</span></div><p class="api-scope">适用：${escape(grant.appliesTo)}</p></div>`).join('')}${account.promotional.length?'':'<p class="api-empty">暂无赠送额度</p>'}</div>`).join(''):'<p class="api-empty">更新 Headroom 扩展后，点击「全部更新」自动读取已登录组织的账单页。</p>'}<div class="api-bottom"><small>与 Claude Max 使用额度分别显示</small><a href="https://platform.claude.com/settings/billing" target="_blank" rel="noopener noreferrer">官方账单 ↗</a></div></article>`);
+  }};
+}

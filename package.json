@@ -1,0 +1,22 @@
+{
+  "name": "ai-headroom",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A local subscription quota dashboard. One shared pool, one meter.",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "build:desktop": "node scripts/build-desktop.mjs",
+    "test:desktop": "node scripts/test-desktop.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "linkedom": "^0.18.14"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
+  }
+}
