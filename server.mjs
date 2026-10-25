@@ -135,7 +135,7 @@ export const server = http.createServer(async (req, res) => {
     if(req.method==='POST' && url.pathname==='/api/desktop/refresh') {
       await body(req);
       if(desktopRefresh.status==='running')return json(res,409,{error:'后台正在刷新，请稍候。'});
-      if(!desktopBridge.connected)return json(res,503,{error:'请打开 Edge，并在扩展管理页重新加载 Headroom 扩展。'});
+      if(!desktopBridge.connected)return json(res,503,{error:'请打开 Edge，并在扩展管理页重新加载 AI head-up dispaly 扩展。'});
       if(desktopRefresh.startedAt&&Date.now()-Date.parse(desktopRefresh.startedAt)<60000)return json(res,429,{error:'请间隔至少 1 分钟再刷新。'});
       const jobId=randomUUID();desktopRefresh={id:jobId,status:'running',startedAt:new Date().toISOString(),error:null};publish();
       const local=async route=>{const response=await fetch(`http://127.0.0.1:${PORT}${route}`,{method:'POST',headers:{'Content-Type':'application/json','X-Headroom-Client':'local'},body:'{}',signal:AbortSignal.timeout(150000)});const result=await response.json();if(!response.ok)throw Error(result.error||'读取失败');return result;};
@@ -222,4 +222,4 @@ export const server = http.createServer(async (req, res) => {
   } catch (error) { json(res, 400, { error: error instanceof SyntaxError ? 'JSON 文件格式无效。' : error.message }); }
 });
 desktopBridge=createDesktopBridge(server,{token:browserKey,port:PORT,onChange:publish});
-server.listen(PORT, '127.0.0.1', () => console.log(`AI Headroom ready at http://127.0.0.1:${PORT}`));
+server.listen(PORT, '127.0.0.1', () => console.log(`AI head-up dispaly ready at http://127.0.0.1:${PORT}`));

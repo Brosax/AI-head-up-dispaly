@@ -15,7 +15,7 @@ using Microsoft.Win32;
 internal static class HeadroomLauncher {
     static readonly string Root = AppDomain.CurrentDomain.BaseDirectory;
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    static string StartupCommand { get { return "\"" + Application.ExecutablePath + "\" --background"; } }
+    static string StartupCommand { get { return "\"" + Path.Combine(Root, "Headroom.exe") + "\" --background"; } }
     static string InstanceName {
         get {
             using (var hash = SHA256.Create())
@@ -90,7 +90,7 @@ internal static class HeadroomLauncher {
             popup.RefreshRequested = StartRefresh;
             tray = new NotifyIcon {
                 Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath),
-                Text = "Headroom · 点击打开 AI 额度",
+                Text = "AI head-up dispaly · 点击打开 AI 额度",
                 Visible = true
             };
             tray.MouseClick += delegate(object sender, MouseEventArgs e) {
@@ -222,7 +222,7 @@ internal static class HeadroomLauncher {
 
         void ShowError(Exception error) {
             Log("ERROR " + error.Message);
-            tray.ShowBalloonTip(6000, "Headroom 暂时无法打开", error.Message, ToolTipIcon.Error);
+            tray.ShowBalloonTip(6000, "AI head-up dispaly 暂时无法打开", error.Message, ToolTipIcon.Error);
         }
 
         void OpenToolbar() {
@@ -236,7 +236,7 @@ internal static class HeadroomLauncher {
             }
             if ((DateTime.UtcNow - lastLaunch).TotalSeconds < 3) return;
             opening = true;
-            tray.Text = "Headroom · 正在打开";
+            tray.Text = "AI head-up dispaly · 正在打开";
             ThreadPool.QueueUserWorkItem(delegate {
                 Exception failure = null;
                 try {
@@ -256,7 +256,7 @@ internal static class HeadroomLauncher {
                 if (!exiting) {
                     try { dispatcher.BeginInvoke((Action)delegate {
                         opening = false;
-                        tray.Text = "Headroom · 点击打开 AI 额度";
+                        tray.Text = "AI head-up dispaly · 点击打开 AI 额度";
                         if (failure != null) ShowError(failure);
                     }); } catch (InvalidOperationException) {}
                 }
@@ -294,7 +294,7 @@ internal static class HeadroomLauncher {
         EnumWindows(delegate(IntPtr window, IntPtr param) {
             var title = new StringBuilder(512);
             GetWindowText(window, title, title.Capacity);
-            if (title.ToString() != "Headroom · 额度工具栏") return true;
+            if (title.ToString() != "AI head-up dispaly · 额度工具栏" && title.ToString() != "Headroom · 额度工具栏") return true;
             uint pid;
             GetWindowThreadProcessId(window, out pid);
             try { using (var process = Process.GetProcessById((int)pid)) {
@@ -350,7 +350,7 @@ internal static class HeadroomLauncher {
             return 0;
         } catch(Exception error) {
             Log("ERROR "+error.Message);
-            MessageBox.Show(error.Message,"Headroom could not open",MessageBoxButtons.OK,MessageBoxIcon.Error);return 1;
+            MessageBox.Show(error.Message,"AI head-up dispaly could not open",MessageBoxButtons.OK,MessageBoxIcon.Error);return 1;
         }
     }
 }

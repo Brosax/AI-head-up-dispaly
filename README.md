@@ -1,8 +1,8 @@
-# Headroom · AI 余量
+# AI head-up dispaly · AI 余量
 
 把 AI 订阅额度和 API 余额放进一个 Windows 托盘面板。点击更新，后台并行读取；每家完成后立即显示。
 
-<img src="docs/images/headroom-dark.png" alt="Headroom 暗色托盘面板，展示六家额度和底部四个操作图标" width="392">
+<img src="docs/images/ai-head-up-dispaly-dark.png" alt="AI head-up dispaly 暗色托盘面板，展示六家额度和底部四个操作图标" width="392">
 
 *预览使用虚构演示数据，不包含真实账户或余额。*
 
@@ -47,12 +47,14 @@ Codex 的读数不代表 ChatGPT 所有网页功能的总额度。套餐名称�
 ```powershell
 npm.cmd ci
 npm.cmd run build:desktop
-.\Headroom.exe
+.\AI-head-up-dispaly.exe
 ```
 
-仓库包含源码，不包含本机构建的 EXE。构建命令会生成 `Headroom.exe` 和 `desktop/CredentialVault.exe`。
+仓库包含源码，不包含本机构建的 EXE。构建命令会生成 `AI-head-up-dispaly.exe` 和 `desktop/CredentialVault.exe`。
 
-启动后可从右下角系统托盘找到 Headroom。左键打开独立工具栏，右键直接查看额度；图标可能收在 Windows 的「˄」里。关闭工具栏不会退出托盘。
+升级时会保留兼容的 `Headroom.exe` 入口，已有快捷方式、启动项和配对数据可继续使用。
+
+启动后可从右下角系统托盘找到 AI head-up dispaly。左键打开独立工具栏，右键直接查看额度；图标可能收在 Windows 的「˄」里。关闭工具栏不会退出托盘。
 
 完整面板位于 [http://127.0.0.1:4317](http://127.0.0.1:4317)，工具栏位于 [http://127.0.0.1:4317/toolbar](http://127.0.0.1:4317/toolbar)。只运行网页服务可使用 `npm.cmd start`。
 
@@ -60,9 +62,9 @@ npm.cmd run build:desktop
 
 1. 在 Edge 打开 `edge://extensions`，开启「开发人员模式」。
 2. 点击「加载解压缩的扩展」，选择项目的 `extension` 文件夹。
-3. 打开 Headroom 完整面板，在「接入与数据」中获取配对码。
-4. 点击 Edge 工具栏里的 Headroom 扩展，粘贴配对码并开启。
-5. 确保需要采集的网站已经登录，再点击 Headroom 的刷新按钮。
+3. 打开 AI head-up dispaly 完整面板，在「接入与数据」中获取配对码。
+4. 点击 Edge 工具栏里的 AI head-up dispaly 扩展，粘贴配对码并开启。
+5. 确保需要采集的网站已经登录，再点击 AI head-up dispaly 的刷新按钮。
 
 扩展使用已有登录，创建自己的后台临时设置页，读取完成后关闭。临时页丢失时会新建一次重试，不重载或关闭用户自己的页面。更新扩展源码后，需要在 Edge 扩展管理页点击一次「重新加载」，已有配对保留。
 
@@ -76,7 +78,7 @@ npm.cmd run build:desktop
 
 ### 配置 Tokscale 路径
 
-默认尝试已存在的 Windows Bun 4.20.1 缓存，再尝试 PATH 中的 `tokscale.exe` / `tokscale`。Headroom 不会自行运行 `bunx` 下载程序。
+默认尝试已存在的 Windows Bun 4.20.1 缓存，再尝试 PATH 中的 `tokscale.exe` / `tokscale`。AI head-up dispaly 不会自行运行 `bunx` 下载程序。
 
 找不到时，在项目根目录创建未纳入 Git 的 `local-config.json`：
 
@@ -95,7 +97,7 @@ npm.cmd run build:desktop
 | ☀ / ☾ | 切换亮色和暗色 |
 | ↻ | 后台刷新全部来源 |
 | ↗ | 打开工具栏 |
-| ⏻ | 退出 Headroom |
+| ⏻ | 退出 AI head-up dispaly |
 
 打开工具栏右上角的设置，可管理「登录 Windows 时启动」。启动后只驻留托盘，不自动采集。移动项目位置后，需要重新设置启动项。
 

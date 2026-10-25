@@ -31,7 +31,7 @@ internal sealed class TrayPopup : Form {
 
     public TrayPopup(Action openToolbar, Action exit, Action<bool> setStartup) {
         open = openToolbar; quit = exit; changeStartup = setStartup;
-        Text = "Headroom · 额度速览"; AccessibleName = Text;
+        Text = "AI head-up dispaly · 额度速览"; AccessibleName = Text;
         FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; TopMost = true;
         StartPosition = FormStartPosition.Manual; BackColor = Paper; ForeColor = Ink;
         Font = new Font("Microsoft YaHei UI", 9F); AutoScaleMode = AutoScaleMode.None;
@@ -51,7 +51,7 @@ internal sealed class TrayPopup : Form {
         launch.AccessibleName = "打开工具栏"; tips.SetToolTip(launch, "打开工具栏");
         launch.Click += delegate { Hide(); open(); }; Controls.Add(launch);
         var leave = IconButton("⏻", 302, false);
-        leave.AccessibleName = "退出 Headroom"; tips.SetToolTip(leave, "退出 Headroom");
+        leave.AccessibleName = "退出 AI head-up dispaly"; tips.SetToolTip(leave, "退出 AI head-up dispaly");
         leave.Click += delegate { Hide(); quit(); }; Controls.Add(leave);
         Deactivate += delegate { Hide(); };
         ApplyTheme("system");
@@ -131,19 +131,19 @@ internal sealed class TrayPopup : Form {
     public void ShowSettings() {
         Hide();
         if (settings != null && !settings.IsDisposed) { settings.Show(); settings.Activate(); return; }
-        settings = new Form { Text = "Headroom · 设置", ClientSize = new Size(392, 228), FormBorderStyle = FormBorderStyle.FixedDialog,
+        settings = new Form { Text = "AI head-up dispaly · 设置", ClientSize = new Size(392, 228), FormBorderStyle = FormBorderStyle.FixedDialog,
             MaximizeBox = false, MinimizeBox = false, StartPosition = FormStartPosition.CenterScreen, BackColor = Paper, ForeColor = Ink, Font = Font };
         settings.Controls.Add(Label("启动与退出", 24, 18, 344, 32, new Font(Font.FontFamily, 16F), Ink));
-        startup = new CheckBox { Text = "登录 Windows 时启动 Headroom", Location = new Point(26, 70), AutoSize = true, Checked = startupEnabled, ForeColor = Ink, BackColor = Paper };
+        startup = new CheckBox { Text = "登录 Windows 时启动 AI head-up dispaly", Location = new Point(26, 70), AutoSize = true, Checked = startupEnabled, ForeColor = Ink, BackColor = Paper };
         startup.CheckedChanged += delegate {
             if (settingStartup) return;
             changeStartup(startup.Checked);
         };
         settings.Controls.Add(startup);
         settings.Controls.Add(Label("启动后仅驻留托盘，不弹出工具栏。", 26, 96, 340, 26, new Font(Font.FontFamily, 8.5F), Muted));
-        var leave = Button("退出 Headroom", 24, 161, 160, 38, false);
+        var leave = Button("退出 AI head-up dispaly", 24, 161, 160, 38, false);
         if (dark) Retint(leave, true);
-        leave.ForeColor = Ink; leave.AccessibleName = "退出 Headroom";
+        leave.ForeColor = Ink; leave.AccessibleName = "退出 AI head-up dispaly";
         leave.Click += delegate { settings.Close(); quit(); }; settings.Controls.Add(leave);
         var done = Button("完成", 264, 161, 104, 38, true);
         if (dark) Retint(done, true);

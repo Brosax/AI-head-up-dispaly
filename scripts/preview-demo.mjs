@@ -15,5 +15,5 @@ const fixture=path.join(directory,'dashboard.json');writeFileSync(fixture,JSON.s
 const executable=path.join(directory,'TrayPopup.Preview.exe');
 build(executable,['TrayPopup.Preview.cs','QuotaSummary.cs','TrayPopup.cs']);
 const imageDirectory=path.join(root,'docs','images');mkdirSync(imageDirectory,{recursive:true});
-run(executable,[fixture,path.join(imageDirectory,'headroom-dark.png'),'dark']);
-console.log('Created docs/images/headroom-dark.png with fictional demo data.');
+run(executable,[fixture,path.join(imageDirectory,'ai-head-up-dispaly-dark.png'),'dark']);
+console.log('Created docs/images/ai-head-up-dispaly-dark.png with fictional demo data.');

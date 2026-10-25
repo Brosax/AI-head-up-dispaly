@@ -1,2 +1,2 @@
 @echo off
-start "Headroom" "%~dp0Headroom.exe"
+start "AI head-up dispaly" "%~dp0AI-head-up-dispaly.exe"

@@ -14,7 +14,7 @@ export function compiler(){
 export function run(executable,args){
   const result=spawnSync(executable,args,{cwd:root,stdio:'inherit',windowsHide:true});
   if(result.error)throw result.error;
-  if(result.status!==0)throw Error(`${path.basename(executable)} failed (exit ${result.status}). Close Headroom before rebuilding.`);
+  if(result.status!==0)throw Error(`${path.basename(executable)} failed (exit ${result.status}). Close AI head-up dispaly before rebuilding.`);
 }
 export function build(output,sources,{windowed=false,icon=false}={}){
   mkdirSync(path.dirname(output),{recursive:true});

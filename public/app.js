@@ -184,7 +184,7 @@ document.addEventListener('click', event => {
 $('#refresh').addEventListener('click', sync); $('#connection-sync').addEventListener('click', sync);
 $('#browser-pair').addEventListener('click',async()=>{
   if(isDemo) return toast('请先退出示例模式。');
-  try{const {key}=await request('/api/browser/pairing',{});await navigator.clipboard.writeText(key);toast('配对码已复制。打开 Headroom 扩展，粘贴后点击「配对并开启」。');}
+  try{const {key}=await request('/api/browser/pairing',{});await navigator.clipboard.writeText(key);toast('配对码已复制。打开 AI head-up dispaly 扩展，粘贴后点击「配对并开启」。');}
   catch(error){toast(`无法复制配对码：${error.message}`);}
 });
 $('#demo-toggle').addEventListener('click', toggleDemo); $('#exit-demo').addEventListener('click', toggleDemo);
