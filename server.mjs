@@ -9,6 +9,7 @@ import { collect } from './lib/collector.mjs';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import {createDesktopBridge} from './lib/desktop-bridge.mjs';
 import {desktopCommand,validCollectorId} from './lib/collector-window.mjs';
+import {browserFailures} from './lib/refresh-errors.mjs';
 import { normalizeBrowser } from './lib/browser.mjs';
 import {normalizeClaudeApi,claudeApiView} from './lib/claude-api.mjs';
 import {fetchBalance,apiView} from './lib/deepseek.mjs';
@@ -25,7 +26,9 @@ function dashboard(value){
   const quotas=quotaDashboard(value),api={...apiView(value,deepseekConfigured),claude:claudeApiView(value)};
   const timestamps=[...quotas.pools.map(pool=>pool.observedAt),api.deepseek?.observedAt,api.claude?.observedAt].map(Date.parse).filter(Number.isFinite);
   const lastUpdatedAt=timestamps.length?new Date(Math.max(...timestamps)).toISOString():null;
-  return {...quotas,api,lastUpdatedAt,preferences:{theme:['light','dark','system'].includes(value.preferences?.theme)?value.preferences.theme:'system'},desktop:{connected:!!desktopBridge?.connected,refresh:desktopRefresh}};
+  const previousErrors=browserFailures(value);
+  const refresh=desktopRefresh.status==='idle'&&previousErrors.length?{status:'error',error:previousErrors.join('；')}:desktopRefresh;
+  return {...quotas,api,lastUpdatedAt,preferences:{theme:['light','dark','system'].includes(value.preferences?.theme)?value.preferences.theme:'system'},desktop:{connected:!!desktopBridge?.connected,refresh}};
 }
 const KEY_FILE=path.join(DATA_DIR,'browser-key.json');
 let browserKey;
@@ -165,7 +168,13 @@ export const server = http.createServer(async (req, res) => {
       const jobId=randomUUID();desktopRefresh={id:jobId,status:'running',startedAt:new Date().toISOString(),error:null};publish();
       const local=async route=>{const response=await fetch(`http://127.0.0.1:${PORT}${route}`,{method:'POST',headers:{'Content-Type':'application/json','X-Headroom-Client':'local'},body:'{}',signal:AbortSignal.timeout(150000)});const result=await response.json();if(!response.ok)throw Error(result.error||'读取失败');return result;};
       Promise.allSettled([local('/api/sync'),local('/api/deepseek/sync'),desktopBridge.refresh(jobId)]).then(results=>{
-        const errors=results.flatMap(result=>result.status==='rejected'?[result.reason.message]:result.value?.error?[result.value.error]:[]);
+        const labels=['Codex','DeepSeek API','网页采集'];
+        const errors=results.flatMap((result,index)=>{
+          const error=result.status==='rejected'?result.reason.message:result.value?.error;
+          if(!error)return [];
+          const details=index===2?browserFailures(state,desktopRefresh.startedAt):[];
+          return details.length?details:[`${labels[index]}：${error}`];
+        });
         desktopRefresh={...desktopRefresh,status:errors.length?'error':'ok',finishedAt:new Date().toISOString(),error:errors.join('；')||null};publish();
       });
       return json(res,202,{desktop:{connected:true,refresh:desktopRefresh}});

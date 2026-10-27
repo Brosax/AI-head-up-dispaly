@@ -79,7 +79,7 @@ async function cycle() {
             break;
           } catch(error) {
             if(missingTab(error))error.code='tab-closed';
-            const recoverable=error.code==='tab-closed'||provider==='claude-api'&&error.code==='script-unavailable';
+            const recoverable=error.code==='tab-closed'||provider==='claude-api'&&error.code==='script-unavailable'||provider==='anthropic'&&error.code==='identity-missing';
             if(attempt===1||!recoverable)throw error;
             // The old ID may no longer exist. Replace our temporary tab once,
             // instead of repeatedly messaging/reloading a dead ID.
@@ -104,7 +104,8 @@ async function cycle() {
     if(collector?.id!==undefined)try{await chrome.windows.remove(collector.id);}catch{}
     running=false; await chrome.storage.local.set({lastRun:new Date().toISOString()});
   }
-  return {ok:errors.length===0,completed:Object.keys(PROVIDERS).length-errors.length,error:errors.length?'部分网页读取失败，请查看接入状态。':null};
+  const names={'claude-api':'Claude API',anthropic:'Claude 订阅',xai:'Grok',google:'Gemini'};
+  return {ok:errors.length===0,completed:Object.keys(PROVIDERS).length-errors.length,error:errors.length?errors.map(id=>names[id]).join('、')+'读取失败，请查看各平台状态。':null};
 }
 // Migrate the previous periodic mode. Nothing is collected on a timer or browser startup.
 async function resume(){await chrome.alarms.clear('headroom');await chrome.alarms.create('headroom-link',{periodInMinutes:1});await connectDesktop();}

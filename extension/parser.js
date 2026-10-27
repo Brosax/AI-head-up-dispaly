@@ -33,7 +33,13 @@
       const email = labels.match(emailPattern)?.[0];
       return email ? { kind: 'email', value: email.toLowerCase() } : null;
     }
-    const dialog = doc.querySelector('[role="dialog"]');
+    if (provider === 'anthropic') {
+      const copy=doc.querySelector('button[aria-label="Copy organization ID"]');
+      const value=(text(copy)||copy?.textContent||'').replace(/[\uE000-\uF8FF]/g,'').trim();
+      const org=value.match(/^([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})(?:\s|$)/i)?.[1];
+      if(org)return {kind:'organization',value:org.toLowerCase()};
+    }
+    const dialog = doc.querySelector('[role="dialog"], dialog');
     if (!dialog) return null;
     if (provider === 'anthropic') {
       const org = text(dialog).match(/Organization ID\s*([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})/i)?.[1];

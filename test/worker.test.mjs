@@ -18,7 +18,7 @@ function harness(options={}){
       get:async id=>access(id,'get'),update:async(id,input)=>Object.assign(access(id,input.url?'navigate':'configure'),input),
       reload:async id=>{calls.reloaded.push(id);if(options.onReload)options.onReload(tabs.get(id));},
       remove:async id=>{calls.removed.push(id);tabs.delete(id);},
-      sendMessage:async(id,message)=>{const tab=access(id,message.stage);if(options.beforeProbe)await options.beforeProbe(tab.url,message.stage);if(tab.url.includes('platform.claude.com')&&message.stage==='usage')return options.billingProbe?options.billingProbe(tab):{identity:{kind:'console-label',value:'Demo User / Example Workspace'},balance:{currency:'USD',purchased:'0.00',promotional:[]},observedAt:new Date().toISOString()};return message.stage==='identity'?{identity:{kind:'email',value:'fixture@example.com'}}:{identity:{kind:'email',value:'fixture@example.com'},metrics:[{window:'Weekly',used:10}],observedAt:new Date().toISOString()};},
+      sendMessage:async(id,message)=>{const tab=access(id,message.stage);if(options.beforeProbe)await options.beforeProbe(tab.url,message.stage);if(tab.url.includes('platform.claude.com')&&message.stage==='usage')return options.billingProbe?options.billingProbe(tab):{identity:{kind:'console-label',value:'Demo User / Example Workspace'},balance:{currency:'USD',purchased:'0.00',promotional:[]},observedAt:new Date().toISOString()};if(message.stage==='identity'&&tab.url.includes('claude.ai')&&options.identityProbe)return options.identityProbe(tab);return message.stage==='identity'?{identity:{kind:'email',value:'fixture@example.com'}}:{identity:{kind:'email',value:'fixture@example.com'},metrics:[{window:'Weekly',used:10}],observedAt:new Date().toISOString()};},
     },
   };
   vm.runInNewContext(code,{chrome,crypto:globalThis.crypto,importScripts:()=>{},connectDesktop:async()=>{},disconnectDesktop:()=>{},fetch:async(url,input)=>{if(url.endsWith('/collector'))return{ok:!options.failHide};const body=JSON.parse(input.body);calls.reports.push(body);return{ok:!(body.status==='ok'&&body.provider===options.failReport)};},AbortSignal,URL,setTimeout:fn=>setTimeout(fn,0),Promise,Date});
@@ -42,6 +42,14 @@ test('local dashboard refresh collects four providers in inactive temporary tabs
 test('failure to hide the collector stops before any provider page opens and cleans up the window',async()=>{
   const h=harness({failHide:true});const result=await h.send({type:'refresh'});
   assert.ok(result.error);assert.equal(h.calls.created.length,0);assert.deepEqual(h.calls.closedWindows,[77]);
+});
+test('Claude identity timeout retries once in a fresh tab and uses only its new identity',async()=>{
+  let first;
+  const h=harness({identityProbe:tab=>{first??=tab.id;return tab.id===first?{}:{identity:{kind:'organization',value:'12345678-1234-1234-1234-123456789012'}};}});
+  const result=await h.send({type:'refresh'});
+  assert.equal(result.ok,true);assert.equal(h.calls.created.length,5);
+  assert.equal(h.calls.reports.find(r=>r.provider==='anthropic'&&r.status==='ok').identity.kind,'organization');
+  assert.equal(h.storage.ownedTabs.length,0);
 });
 
 test('billing waits for visible identity when balance loads first',async()=>{

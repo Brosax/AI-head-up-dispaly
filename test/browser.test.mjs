@@ -7,6 +7,12 @@ import { normalizeTokscale, mergeObservations, dashboard } from '../lib/quotas.m
 const {extract,identity,resetDate}=globalThis.HeadroomParser;
 const documentOf=html=>parseHTML(`<html><body>${html}</body></html>`).document;
 const now=new Date('2026-10-24T20:45:00Z');
+test('Claude reads the explicit organization control without relying on dialog text layout',()=>{
+  const id='12345678-1234-1234-1234-123456789012';
+  const doc=documentOf(`<section>Organization ID<button aria-label="Copy organization ID"><span>${id}</span><span>\uE000</span></button></section>`);
+  assert.deepEqual(identity(doc,'anthropic'),{kind:'organization',value:id});
+  assert.equal(identity(documentOf(`<p>${id}</p>`),'anthropic'),null);
+});
 function meter(label,value,extra='') {return `<section><div><span id="${label}">${label}</span><span>Resets Saturday 6:00 PM</span></div><div><div><div role="meter" aria-labelledby="${label}" aria-valuenow="${value}"></div></div><span>${value}% used</span></div>${extra}</section>`;}
 test('Claude reads session/week meters, excludes product percentages and credit balances',()=>{
   const doc=documentOf(`<div role="dialog">Max (5x)${meter('Current session',50)}${meter('This week',6)}${meter('Claude Code',100)}${meter('Included credit',0)}</div>`);

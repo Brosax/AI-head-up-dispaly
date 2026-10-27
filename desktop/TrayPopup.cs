@@ -36,12 +36,12 @@ internal sealed class TrayPopup : Form {
         FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; TopMost = true;
         StartPosition = FormStartPosition.Manual; BackColor = Paper; ForeColor = Ink;
         Font = new Font("Microsoft YaHei UI", 9F); AutoScaleMode = AutoScaleMode.None;
-        ClientSize = new Size(392, 638); DoubleBuffered = true;
-        content = new Panel { Location = new Point(24, 14), Size = new Size(344, 510), AutoScroll = true, BackColor = Paper };
+        ClientSize = new Size(392, 606); DoubleBuffered = true;
+        content = new Panel { Location = new Point(24, 14), Size = new Size(344, 478), AutoScroll = true, BackColor = Paper };
         Controls.Add(content);
-        status = Label("读取本机保存的额度…", 24, 528, 344, 20, new Font(Font.FontFamily, 8F), Muted);
+        status = Label("读取本机保存的额度…", 24, 496, 344, 20, new Font(Font.FontFamily, 8F), Muted);
         Controls.Add(status);
-        lastUpdated = Label("最后刷新：尚无读数",24,548,344,20,new Font(Font.FontFamily,8F),Muted);
+        lastUpdated = Label("最后刷新：尚无读数",24,516,344,20,new Font(Font.FontFamily,8F),Muted);
         tips.SetToolTip(lastUpdated,"最近一次成功读入数据的时间（马德里）；部分平台失败时会保留旧读数。");
         Controls.Add(lastUpdated);
         themeToggle = IconButton("☀", 45, false);
@@ -108,7 +108,7 @@ internal sealed class TrayPopup : Form {
     }
     Button IconButton(string icon, int x, bool primary) {
         Button button = primary ? (Button)new RefreshIconButton() : icon == "⏻" ? (Button)new PowerIconButton() : new UtilityIconButton { Launch = icon == "↗" };
-        button.Location=new Point(x,582);button.Size=new Size(44,44);button.FlatStyle=FlatStyle.Flat;button.Cursor=Cursors.Hand;button.TabStop=true;
+        button.Location=new Point(x,550);button.Size=new Size(44,44);button.FlatStyle=FlatStyle.Flat;button.Cursor=Cursors.Hand;button.TabStop=true;
         button.FlatAppearance.BorderSize = 0;
         button.FlatAppearance.MouseOverBackColor = Color.FromArgb(230,234,221);
         button.Font = new Font("Segoe UI Symbol", 23F);
@@ -218,7 +218,7 @@ internal sealed class TrayPopup : Form {
             path.AddArc(w-d, h-d, d, d, 0, 90); path.AddArc(0, h-d, d, d, 90, 90); path.CloseFigure();
             using (var pen = new Pen(Tone(Color.FromArgb(205, 215, 196)))) e.Graphics.DrawPath(pen, path);
         }
-        using (var pen = new Pen(Tone(Color.FromArgb(217, 224, 207)))) { e.Graphics.DrawLine(pen, 24, 572, 368, 572); }
+        using (var pen = new Pen(Tone(Color.FromArgb(217, 224, 207)))) { e.Graphics.DrawLine(pen, 24, 540, 368, 540); }
     }
     protected override void Dispose(bool disposing) { if (disposing) { tips.Dispose(); if (settings != null) settings.Dispose(); } base.Dispose(disposing); }
 }
@@ -233,8 +233,8 @@ internal sealed class RefreshIconButton : Button {
         float cx=ClientSize.Width/2f, cy=ClientSize.Height/2f;
         using(var pen=new Pen(Enabled?ForeColor:SystemColors.GrayText,1.8f)) {
             pen.StartCap=LineCap.Round;pen.EndCap=LineCap.Round;
-            g.DrawArc(pen,cx-8,cy-8,16,16,-40,300);
-            float tipX=cx+6.13f,tipY=cy-5.14f;
+            g.DrawArc(pen,cx-8,cy-8,16,16,45,270);
+            float tipX=cx+5.657f,tipY=cy-5.657f;
             g.DrawLines(pen,new[]{new PointF(tipX-5,tipY),new PointF(tipX,tipY),new PointF(tipX,tipY-5)});
         }
     }

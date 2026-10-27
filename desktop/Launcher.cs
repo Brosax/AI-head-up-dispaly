@@ -118,6 +118,8 @@ internal static class HeadroomLauncher {
             });
             popup.ThemeChanged = SaveTheme;
             popup.RefreshRequested = StartRefresh;
+            // Prepare the native handle while hidden, before the first tray click.
+            IntPtr popupHandle = popup.Handle;
             tray = new NotifyIcon {
                 Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath),
                 Text = "AI head-up dispaly · 点击打开 AI 额度",
@@ -149,8 +151,15 @@ internal static class HeadroomLauncher {
         }
 
         void ShowPopup() {
-            popup.ApplyTheme(themeMode); popup.SetStartup(StartupEnabled()); popup.Present(Cursor.Position); ReadSummary();
-            Log("POPUP shown");
+            var clock = Stopwatch.StartNew();
+            popup.Present(Cursor.Position);
+            clock.Stop();
+            // The cached controls/theme are already ready. Settings and disk I/O
+            // do not belong on the right-click display path.
+            ThreadPool.QueueUserWorkItem(delegate { Log("POPUP shown; presentMs=" + clock.ElapsedMilliseconds); });
+            dispatcher.BeginInvoke((Action)delegate {
+                if (!exiting && (DateTime.UtcNow-lastSummary).TotalSeconds>2) ReadSummary();
+            });
         }
 
         void EnsureService() {
