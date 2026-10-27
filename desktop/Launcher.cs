@@ -16,6 +16,31 @@ internal static class HeadroomLauncher {
     static readonly string Root = AppDomain.CurrentDomain.BaseDirectory;
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     static string StartupCommand { get { return "\"" + Path.Combine(Root, "Headroom.exe") + "\" --background"; } }
+    static string StartupShortcut { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "AI head-up dispaly.lnk"); } }
+    static object ShortcutMember(object shortcut, string name, System.Reflection.BindingFlags flags, params object[] args) {
+        return shortcut.GetType().InvokeMember(name, flags, null, shortcut, args);
+    }
+    static bool StartupShortcutMatches(bool create) {
+        if (!create && !File.Exists(StartupShortcut)) return false;
+        object shell = null, shortcut = null;
+        try {
+            shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
+            shortcut = shell.GetType().InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { StartupShortcut });
+            string target = Path.Combine(Root, "AI-head-up-dispaly.exe");
+            if (create) {
+                ShortcutMember(shortcut, "TargetPath", System.Reflection.BindingFlags.SetProperty, target);
+                ShortcutMember(shortcut, "Arguments", System.Reflection.BindingFlags.SetProperty, "--background");
+                ShortcutMember(shortcut, "WorkingDirectory", System.Reflection.BindingFlags.SetProperty, Root);
+                ShortcutMember(shortcut, "Description", System.Reflection.BindingFlags.SetProperty, "AI head-up dispaly");
+                ShortcutMember(shortcut, "Save", System.Reflection.BindingFlags.InvokeMethod);
+            }
+            return String.Equals(ShortcutMember(shortcut, "TargetPath", System.Reflection.BindingFlags.GetProperty) as string, target, StringComparison.OrdinalIgnoreCase)
+                && String.Equals(ShortcutMember(shortcut, "Arguments", System.Reflection.BindingFlags.GetProperty) as string, "--background", StringComparison.Ordinal);
+        } finally {
+            if (shortcut != null) Marshal.FinalReleaseComObject(shortcut);
+            if (shell != null) Marshal.FinalReleaseComObject(shell);
+        }
+    }
     static string InstanceName {
         get {
             using (var hash = SHA256.Create())
@@ -24,13 +49,18 @@ internal static class HeadroomLauncher {
         }
     }
     static bool StartupEnabled() {
+        if (StartupShortcutMatches(false)) return true;
         using (var key = Registry.CurrentUser.OpenSubKey(RunKey))
             return key != null && String.Equals(key.GetValue("Headroom") as string, StartupCommand, StringComparison.OrdinalIgnoreCase);
     }
     static void SetStartup(bool enabled) {
+        if (enabled) {
+            if (!StartupShortcutMatches(true)) throw new IOException("Could not verify the startup shortcut.");
+        } else if (StartupShortcutMatches(false)) File.Delete(StartupShortcut);
+        // Migrate only this installation's old entry, avoiding duplicate launches.
         using (var key = Registry.CurrentUser.CreateSubKey(RunKey)) {
-            if (enabled) key.SetValue("Headroom", StartupCommand, RegistryValueKind.String);
-            else if (StartupEnabled()) key.DeleteValue("Headroom", false);
+            if (String.Equals(key.GetValue("Headroom") as string, StartupCommand, StringComparison.OrdinalIgnoreCase))
+                key.DeleteValue("Headroom", false);
         }
         Log("STARTUP " + (enabled ? "enabled" : "disabled"));
     }
@@ -107,6 +137,7 @@ internal static class HeadroomLauncher {
             };
             signals.Start();
             Log("TRAY ready; background=" + background);
+            ReadSummary(); // Start the local bridge even when the toolbar stays closed.
             if (preview) ShowPopup();
             if (settingsOnStart) OpenSettings();
             if (!background) OpenToolbar();
@@ -139,7 +170,7 @@ internal static class HeadroomLauncher {
             lastSummary = DateTime.UtcNow;
             int revision = themeRevision;
             ThreadPool.QueueUserWorkItem(delegate {
-                List<QuotaSummary.Card> rows; bool failed = false; string nextTheme = themeMode; QuotaSummary.RefreshInfo refreshInfo=null;
+                List<QuotaSummary.Card> rows; bool failed = false; string nextTheme = themeMode,updatedText=null; QuotaSummary.RefreshInfo refreshInfo=null;
                 try {
                     EnsureService();
                     var request = (HttpWebRequest)WebRequest.Create("http://127.0.0.1:4317/api/dashboard");
@@ -147,6 +178,7 @@ internal static class HeadroomLauncher {
                     using (var response = request.GetResponse())
                     using (var reader = new StreamReader(response.GetResponseStream())) {
                         string json = reader.ReadToEnd(); rows = QuotaSummary.Cards(json); nextTheme = QuotaSummary.Theme(json); refreshInfo=QuotaSummary.Refresh(json);
+                        updatedText=QuotaSummary.LastUpdated(json);
                     }
                     summary = rows;
                 } catch {
@@ -155,6 +187,7 @@ internal static class HeadroomLauncher {
                 if (exiting) return;
                 try { dispatcher.BeginInvoke((Action)delegate {
                     readingSummary = false;
+                    if(updatedText!=null)popup.SetLastUpdated(updatedText);
                     if (!savingTheme && revision == themeRevision) {
                         themeMode = nextTheme; popup.ApplyTheme(themeMode);
                         string signature = failed + new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(rows);
@@ -175,7 +208,7 @@ internal static class HeadroomLauncher {
                     EnsureService();
                     var request=(HttpWebRequest)WebRequest.Create("http://127.0.0.1:4317/api/desktop/refresh");
                     request.Method="POST";request.ContentType="application/json";request.Headers["X-Headroom-Client"]="local";
-                    request.Timeout=10000;request.ReadWriteTimeout=10000;request.Proxy=null;request.AllowAutoRedirect=false;
+                    request.Timeout=30000;request.ReadWriteTimeout=30000;request.Proxy=null;request.AllowAutoRedirect=false;
                     byte[] bytes=Encoding.UTF8.GetBytes("{}");request.ContentLength=bytes.Length;
                     using(var stream=request.GetRequestStream())stream.Write(bytes,0,bytes.Length);
                     using(var response=request.GetResponse()){}
@@ -305,6 +338,28 @@ internal static class HeadroomLauncher {
         return found;
     }
     delegate bool WindowCallback(IntPtr window, IntPtr param);
+    static bool HideCollector(string id) {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(id, "\\A[a-f0-9]{32}\\z")) return false;
+        string marker = "AIHUD-Collector-" + id;
+        for (int attempt = 0; attempt < 80; attempt++) {
+            bool hidden = false;
+            EnumWindows(delegate(IntPtr window, IntPtr param) {
+                var title = new StringBuilder(512); GetWindowText(window, title, title.Capacity);
+                if (title.ToString() != marker && !title.ToString().StartsWith(marker + " - ", StringComparison.Ordinal)) return true;
+                uint pid; GetWindowThreadProcessId(window, out pid);
+                try { using (var process = Process.GetProcessById((int)pid)) {
+                    if (process.ProcessName.Equals("msedge", StringComparison.OrdinalIgnoreCase)) {
+                        ShowWindow(window, 0); hidden = !IsWindowVisible(window); return !hidden;
+                    }
+                } } catch {}
+                return true;
+            }, IntPtr.Zero);
+            if (hidden) return true;
+            Thread.Sleep(100);
+        }
+        return false;
+    }
+    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
     [DllImport("user32.dll")] static extern bool EnumWindows(WindowCallback callback, IntPtr param);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr window, StringBuilder text, int count);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint pid);
@@ -315,6 +370,13 @@ internal static class HeadroomLauncher {
     [STAThread]
     static int Main(string[] args) {
         try {
+            if (args.Length == 2 && args[0] == "--hide-collector") return HideCollector(args[1]) ? 0 : 1;
+            if (args.Length == 1 && args[0] == "--wake-browser") {
+                Process.Start(new ProcessStartInfo(Find("msedge.exe", "Microsoft\\Edge\\Application"), "--no-startup-window") {
+                    UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden
+                });
+                return 0;
+            }
             if (args.Length > 0 && args[0] == "--enable-startup") { SetStartup(true); return 0; }
             if (args.Length > 0 && args[0] == "--disable-startup") { SetStartup(false); return 0; }
             if (args.Length > 0 && args[0] == "--exit") {

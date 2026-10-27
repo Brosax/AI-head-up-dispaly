@@ -22,6 +22,11 @@ internal static class QuotaSummary {
         return theme == "light" || theme == "dark" ? theme : "system";
     }
     internal sealed class RefreshInfo { public bool Running; public string Message; }
+    public static string LastUpdated(string json) {
+        var data=Map(new JavaScriptSerializer().DeserializeObject(json));DateTimeOffset at;
+        if(!DateTimeOffset.TryParse(Text(Get(data,"lastUpdatedAt")),CultureInfo.InvariantCulture,DateTimeStyles.None,out at))return "最后刷新：尚无读数";
+        return "最后刷新："+TimeZoneInfo.ConvertTime(at,TimeZoneInfo.FindSystemTimeZoneById("Romance Standard Time")).ToString("MM-dd HH:mm:ss",CultureInfo.InvariantCulture);
+    }
     public static RefreshInfo Refresh(string json) {
         var data=Map(new JavaScriptSerializer().DeserializeObject(json));var desktop=Map(Get(data,"desktop"));var job=Map(Get(desktop,"refresh"));
         string status=Text(Get(job,"status"));

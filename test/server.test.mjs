@@ -24,6 +24,19 @@ after(async () => {
 });
 const post = (route, body, headers = {}) => fetch(base + route, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Headroom-Client': 'local', ...headers }, body: JSON.stringify(body) });
 
+test('collector window endpoint requires pairing and validates the exact identifier',async()=>{
+  const route='/api/browser/collector',origin='chrome-extension://'+'a'.repeat(32);
+  assert.equal((await post(route,{id:'a'.repeat(32)})).status,403);
+  assert.equal((await post(route,{id:'a'.repeat(32)},{Origin:origin})).status,401);
+  const {key}=await (await post('/api/browser/pairing',{})).json();
+  const headers={Origin:origin,Authorization:`Bearer ${key}`};
+  assert.equal((await post(route,{id:'../arbitrary'},headers)).status,400);
+  assert.equal((await post(route,{id:'a'.repeat(32),command:'other'},headers)).status,400);
+  assert.equal((await fetch(base+'/collector?id=%3Cscript%3E')).status,400);
+  const page=await fetch(base+'/collector?id='+'a'.repeat(32));
+  assert.equal(page.status,200);assert.match(await page.text(),/AIHUD-Collector-a{32}/);
+});
+
 test('empty installation exposes four subscriptions and zero fabricated quotas', async () => {
   const data = await (await fetch(base + '/api/dashboard')).json();
   assert.equal(data.providers.length, 4); assert.equal(data.pools.length, 0); assert.equal(data.stats.fresh, 0);

@@ -19,6 +19,7 @@ internal sealed class TrayPopup : Form {
     public Action RefreshRequested;
     readonly Button refresh;
     string refreshMessage;
+    readonly Label lastUpdated;
     readonly Panel content;
     readonly Label status;
     CheckBox startup;
@@ -36,21 +37,24 @@ internal sealed class TrayPopup : Form {
         StartPosition = FormStartPosition.Manual; BackColor = Paper; ForeColor = Ink;
         Font = new Font("Microsoft YaHei UI", 9F); AutoScaleMode = AutoScaleMode.None;
         ClientSize = new Size(392, 638); DoubleBuffered = true;
-        content = new Panel { Location = new Point(18, 14), Size = new Size(356, 528), AutoScroll = true, BackColor = Paper };
+        content = new Panel { Location = new Point(24, 14), Size = new Size(344, 510), AutoScroll = true, BackColor = Paper };
         Controls.Add(content);
-        status = Label("读取本机保存的额度…", 24, 548, 344, 20, new Font(Font.FontFamily, 8F), Muted);
+        status = Label("读取本机保存的额度…", 24, 528, 344, 20, new Font(Font.FontFamily, 8F), Muted);
         Controls.Add(status);
-        themeToggle = IconButton("☀", 44, false);
+        lastUpdated = Label("最后刷新：尚无读数",24,548,344,20,new Font(Font.FontFamily,8F),Muted);
+        tips.SetToolTip(lastUpdated,"最近一次成功读入数据的时间（马德里）；部分平台失败时会保留旧读数。");
+        Controls.Add(lastUpdated);
+        themeToggle = IconButton("☀", 45, false);
         themeToggle.Click += delegate { string mode = dark ? "light" : "dark"; ApplyTheme(mode); if (ThemeChanged != null) ThemeChanged(mode); };
         Controls.Add(themeToggle);
-        refresh = IconButton("↻", 130, true);
+        refresh = IconButton("↻", 131, true);
         refresh.AccessibleName = "后台刷新全部额度";
         tips.SetToolTip(refresh, "后台刷新全部额度");
         refresh.Click += delegate { if (RefreshRequested != null) RefreshRequested(); }; Controls.Add(refresh);
-        var launch = IconButton("↗", 216, false);
+        var launch = IconButton("↗", 217, false);
         launch.AccessibleName = "打开工具栏"; tips.SetToolTip(launch, "打开工具栏");
         launch.Click += delegate { Hide(); open(); }; Controls.Add(launch);
-        var leave = IconButton("⏻", 302, false);
+        var leave = IconButton("⏻", 303, false);
         leave.AccessibleName = "退出 AI head-up dispaly"; tips.SetToolTip(leave, "退出 AI head-up dispaly");
         leave.Click += delegate { Hide(); quit(); }; Controls.Add(leave);
         Deactivate += delegate { Hide(); };
@@ -81,7 +85,8 @@ internal sealed class TrayPopup : Form {
             Retint(this, next); if (settings != null && !settings.IsDisposed) Retint(settings, next); dark = next;
             Paper = Rgb(next ? Dark[0] : Light[0]); Ink = Rgb(next ? Dark[1] : Light[1]); Muted = Rgb(next ? Dark[2] : Light[2]);
         }
-        themeToggle.Text = dark ? "☀" : "☾";
+        ((UtilityIconButton)themeToggle).Moon = !dark;
+        themeToggle.Invalidate();
         string action = dark ? "切换到亮色" : "切换到暗色";
         themeToggle.AccessibleName = action;
         themeToggle.AccessibleDescription = "当前为" + (dark ? "暗色" : "亮色") + (mode == "system" ? "，跟随系统" : "");
@@ -102,16 +107,13 @@ internal sealed class TrayPopup : Form {
         return button;
     }
     Button IconButton(string icon, int x, bool primary) {
-        Button button;
-        if (primary || icon == "⏻") {
-            button = primary ? (Button)new RefreshIconButton() : new PowerIconButton();
-            button.Location=new Point(x,580);button.Size=new Size(46,42);button.FlatStyle=FlatStyle.Flat;button.Cursor=Cursors.Hand;button.TabStop=true;
-        } else button=Button(icon,x,580,46,42,false);
+        Button button = primary ? (Button)new RefreshIconButton() : icon == "⏻" ? (Button)new PowerIconButton() : new UtilityIconButton { Launch = icon == "↗" };
+        button.Location=new Point(x,582);button.Size=new Size(44,44);button.FlatStyle=FlatStyle.Flat;button.Cursor=Cursors.Hand;button.TabStop=true;
         button.FlatAppearance.BorderSize = 0;
         button.FlatAppearance.MouseOverBackColor = Color.FromArgb(230,234,221);
         button.Font = new Font("Segoe UI Symbol", 23F);
         button.BackColor = primary ? Rgb(Light[6]) : Paper; button.ForeColor = primary ? Color.FromArgb(62,101,75) : Muted;
-        using (var path = Rounded(45, 41, 40)) button.Region = new Region(path);
+        using (var path = Rounded(43, 43, 42)) button.Region = new Region(path);
         return button;
     }
     static GraphicsPath Rounded(int w, int h, int d) {
@@ -159,6 +161,7 @@ internal sealed class TrayPopup : Form {
         status.Text = String.IsNullOrEmpty(message) ? "已保存的读数 · 点击刷新获取最新额度" : message;
         tips.SetToolTip(status, status.Text);
     }
+    public void SetLastUpdated(string text) { lastUpdated.Text=text; }
     public void Present(Point anchor) {
         var area = Screen.FromPoint(anchor).WorkingArea;
         Location = new Point(Math.Max(area.Left + 8, Math.Min(anchor.X - Width + 12, area.Right - Width - 8)),
@@ -175,15 +178,15 @@ internal sealed class TrayPopup : Form {
             int count=Math.Max(1,card.Metrics.Count);
             int rowHeight=pairedMoney?66:count*48+14;
             if(!String.IsNullOrEmpty(card.Account))rowHeight+=18;
-            var row=new Panel {Location=new Point(0,y),Size=new Size(336,rowHeight),BackColor=Paper};
+            var row=new Panel {Location=new Point(0,y),Size=new Size(344,rowHeight),BackColor=Paper};
             Color accent=card.Id=="openai"?Color.FromArgb(126,226,191):card.Id=="anthropic"||card.Id=="claude-api"?Color.FromArgb(255,175,126):card.Id=="xai"?Color.FromArgb(155,187,243):card.Id=="google"?Color.FromArgb(174,149,246):Color.FromArgb(113,199,232);
-            var dot=new Panel {Location=new Point(3,29),Size=new Size(9,9),BackColor=accent};
+            var dot=new Panel {Location=new Point(0,29),Size=new Size(9,9),BackColor=accent};
             using(var circle=Rounded(9,9,9))dot.Region=new Region(circle);row.Controls.Add(dot);
-            row.Controls.Add(Label(card.Name,20,18,93,30,new Font("Segoe UI",10F,FontStyle.Bold),Ink));
+            row.Controls.Add(Label(card.Name,18,18,91,30,new Font("Segoe UI",10F,FontStyle.Bold),Ink));
             if(!String.IsNullOrEmpty(card.Account)) {var account=Label(card.Account,20,rowHeight-22,306,16,new Font(Font.FontFamily,7F),Muted);tips.SetToolTip(account,card.Account);row.Controls.Add(account);}
-            if(card.Metrics.Count==0)row.Controls.Add(Label("尚未读取",118,24,212,26,Font,Muted));
+            if(card.Metrics.Count==0)row.Controls.Add(Label("尚未读取",112,24,232,26,Font,Muted));
             for(int i=0;i<card.Metrics.Count;i++) {
-                var metric=card.Metrics[i];int x=118+(pairedMoney?i%2*110:0),top=pairedMoney?0:i*48,width=pairedMoney?104:216;
+                var metric=card.Metrics[i];int x=112+(pairedMoney?i%2*120:0),top=pairedMoney?0:i*48,width=pairedMoney?112:232;
                 string stale=metric.Status=="fresh"?"":" · 上次";
                 string caption=metric.Label+stale;
                 var label=Label(caption,x,top+6,metric.Reset==null?width:58,17,new Font(Font.FontFamily,7F),Muted);
@@ -194,7 +197,7 @@ internal sealed class TrayPopup : Form {
                     :new QuotaPill {Text=metric.Value,Provider=card.Id,Progress=metric.Percent,Location=new Point(x,top+26),Size=new Size(width,27),Font=new Font("Segoe UI",13F,FontStyle.Bold)};
                 amount.AccessibleName=card.Name+" "+caption+" "+metric.Value+" "+metric.Reset;tips.SetToolTip(amount,metric.Detail??metric.Value);row.Controls.Add(amount);
             }
-            row.Controls.Add(new Panel {Location=new Point(3,rowHeight-1),Size=new Size(329,1),BackColor=Tone(Color.FromArgb(217,224,207))});
+            row.Controls.Add(new Panel {Location=new Point(0,rowHeight-1),Size=new Size(344,1),BackColor=Tone(Color.FromArgb(217,224,207))});
             content.Controls.Add(row);y+=row.Height;
         }
         content.ResumeLayout();
@@ -225,12 +228,42 @@ internal sealed class RefreshIconButton : Button {
     protected override void OnPaint(PaintEventArgs e) {
         base.OnPaint(e);
         var g=e.Graphics; g.SmoothingMode=SmoothingMode.AntiAlias;
+        g.Clear(Parent == null ? BackColor : Parent.BackColor);
+        using(var fill=new SolidBrush(BackColor))g.FillEllipse(fill,1,1,ClientSize.Width-2,ClientSize.Height-2);
         float cx=ClientSize.Width/2f, cy=ClientSize.Height/2f;
         using(var pen=new Pen(Enabled?ForeColor:SystemColors.GrayText,1.8f)) {
             pen.StartCap=LineCap.Round;pen.EndCap=LineCap.Round;
             g.DrawArc(pen,cx-8,cy-8,16,16,-40,300);
             float tipX=cx+6.13f,tipY=cy-5.14f;
             g.DrawLines(pen,new[]{new PointF(tipX-5,tipY),new PointF(tipX,tipY),new PointF(tipX,tipY-5)});
+        }
+    }
+}
+
+internal sealed class UtilityIconButton : Button {
+    public bool Launch, Moon;
+    protected override void OnPaint(PaintEventArgs e) {
+        base.OnPaint(e);
+        var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
+        float cx=ClientSize.Width/2f,cy=ClientSize.Height/2f;
+        using(var pen=new Pen(ForeColor,1.8f)) {
+            pen.StartCap=LineCap.Round;pen.EndCap=LineCap.Round;pen.LineJoin=LineJoin.Round;
+            if(Launch) {
+                g.DrawLine(pen,cx-7,cy+7,cx+7,cy-7);
+                g.DrawLines(pen,new[]{new PointF(cx-3,cy-7),new PointF(cx+7,cy-7),new PointF(cx+7,cy+3)});
+            } else if(Moon) {
+                using(var path=new GraphicsPath()) {
+                    path.AddArc(cx-8,cy-8,16,16,55,250);
+                    path.AddBezier(cx+4.59f,cy-6.55f,cx-4,cy-5,cx-4,cy+5,cx+4.59f,cy+6.55f);
+                    path.CloseFigure();g.DrawPath(pen,path);
+                }
+            } else {
+                g.DrawEllipse(pen,cx-4.5f,cy-4.5f,9,9);
+                for(int i=0;i<8;i++) {
+                    double angle=i*Math.PI/4;
+                    g.DrawLine(pen,cx+(float)Math.Cos(angle)*7.5f,cy+(float)Math.Sin(angle)*7.5f,cx+(float)Math.Cos(angle)*10,cy+(float)Math.Sin(angle)*10);
+                }
+            }
         }
     }
 }

@@ -12,6 +12,7 @@ internal static class TrayPopupPreview {
             popup.SetStartup(true);
             popup.ApplyTheme(args.Length > 2 ? args[2] : "light");
             popup.SetCards(QuotaSummary.Cards(File.ReadAllText(args[0])), false);
+            popup.SetLastUpdated(QuotaSummary.LastUpdated(File.ReadAllText(args[0])));
             popup.Opacity = 0;
             popup.Show();
             Application.DoEvents();

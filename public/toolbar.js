@@ -14,6 +14,8 @@ function render(){
   else if(busy&&job?.finishedAt&&job.finishedAt>=startedAt){busy=false;$('#message').textContent=job.error||'更新完成';}
   $('#refresh').disabled=busy;$('#refresh-icon').classList.toggle('spinning',busy);$('#refresh-text').textContent=busy?'更新中':'全部更新';
   $('#connection').textContent='本机已连接';
+  $('#hint').textContent=data.lastUpdatedAt?'最后刷新 '+new Intl.DateTimeFormat('zh-CN',{timeZone:'Europe/Madrid',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(data.lastUpdatedAt)):'尚无刷新记录';
+  $('#hint').title='最近一次成功读入数据的时间（马德里）；部分平台失败时保留旧读数。';
   apiBalances.render(data.api?.deepseek,data.api?.claude);
   $('#providers').innerHTML=data.providers.map(provider=>{
     const pools=data.pools.filter(p=>p.provider===provider.id);

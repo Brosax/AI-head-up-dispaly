@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI head-up dispaly · 本地 AI 额度桥接",
-  "version": "0.6.6",
+  "version": "0.7.0",
   "minimum_chrome_version": "116",
   "description": "从 Claude、Grok、Gemini 的官方用量页面自动读取额度，仅发送到本机 AI head-up dispaly。",
   "permissions": ["storage", "alarms"],

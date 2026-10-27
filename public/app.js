@@ -112,7 +112,7 @@ function render() {
   const sync = data.sync || {};
   $('#browser-status').innerHTML = Object.entries({anthropic:'Claude',xai:'Grok',google:'Gemini','claude-api':'Claude API'}).map(([id,name])=>{const c=data.browser?.[id];return `<p class="fine-print">${name} · ${escape(c?.error || (c?.status==='collecting'?'正在读取':c?.completedAt?`上次成功 ${age(c.completedAt)}`:'等待扩展配对'))}</p>`;}).join('');
   $('#sync-status').innerHTML = `<p class="sync-message ${sync.error ? 'error' : ''}">${escape(sync.error || sync.message || '尚未同步。点击后读取本机已登录的订阅额度。')}${sync.attemptedAt ? `<br>最近尝试：${dateFormat(sync.attemptedAt)}` : ''}</p>`;
-  $('#footer-status').textContent = isDemo ? 'DEMO / 示例数据 · 不会保存' : `${data.pools.length} 个额度周期 · 数据仅保存在本机`;
+  $('#footer-status').textContent = isDemo ? 'DEMO / 示例数据 · 不会保存' : `${data.pools.length} 个额度周期 · ${data.lastUpdatedAt?'最后刷新 '+dateFormat(data.lastUpdatedAt,true):'尚无刷新记录'} · 数据仅保存在本机`;
   setView(view);
 }
 async function load() {

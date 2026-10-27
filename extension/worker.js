@@ -36,7 +36,14 @@ async function cycle() {
   if (running) return {error:'已有后台采集正在运行，请稍候。'};
   running=true;
   const errors=[];
+  let collector;
   try {
+    // Keep every provider page out of the user's browsing windows. The native
+    // host must confirm this isolated window is hidden before navigating.
+    const id=crypto.randomUUID().replaceAll('-','');
+    collector=await chrome.windows.create({url:`http://127.0.0.1:4317/collector?id=${id}`,type:'normal',state:'minimized',focused:false});
+    const hidden=await fetch('http://127.0.0.1:4317/api/browser/collector',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({id}),signal:AbortSignal.timeout(12000)});
+    if(!hidden.ok)throw Error('无法隐藏后台采集窗口，本次网页刷新已停止。');
     // Never reload/close user tabs. Only these temporary, inactive collection tabs are touched.
     const {ownedTabs=[]}=await chrome.storage.local.get('ownedTabs');
     for(const id of ownedTabs) { try {await chrome.tabs.remove(id);} catch {} }
@@ -61,7 +68,7 @@ async function cycle() {
           try {
             // Identity belongs to this document; never carry it into a replacement tab.
             identity=undefined;
-            tab=await chrome.tabs.create({url:urls.account||urls.usage,active:false});
+            tab=await chrome.tabs.create({windowId:collector.id,url:urls.account||urls.usage,active:false});
             await track(tab.id,true);
             await chrome.tabs.update(tab.id,{autoDiscardable:false});
             if(urls.account) {
@@ -93,7 +100,10 @@ async function cycle() {
         await releaseTab();
       }
     }));
-  } finally {running=false; await chrome.storage.local.set({lastRun:new Date().toISOString()});}
+  } finally {
+    if(collector?.id!==undefined)try{await chrome.windows.remove(collector.id);}catch{}
+    running=false; await chrome.storage.local.set({lastRun:new Date().toISOString()});
+  }
   return {ok:errors.length===0,completed:Object.keys(PROVIDERS).length-errors.length,error:errors.length?'部分网页读取失败，请查看接入状态。':null};
 }
 // Migrate the previous periodic mode. Nothing is collected on a timer or browser startup.

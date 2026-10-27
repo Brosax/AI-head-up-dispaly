@@ -8,6 +8,7 @@ import { dashboard as quotaDashboard, normalizeTokscale, mergeObservations, crea
 import { collect } from './lib/collector.mjs';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import {createDesktopBridge} from './lib/desktop-bridge.mjs';
+import {desktopCommand,validCollectorId} from './lib/collector-window.mjs';
 import { normalizeBrowser } from './lib/browser.mjs';
 import {normalizeClaudeApi,claudeApiView} from './lib/claude-api.mjs';
 import {fetchBalance,apiView} from './lib/deepseek.mjs';
@@ -20,7 +21,12 @@ const PORT = Number(process.env.PORT || 4317);
 await mkdir(DATA_DIR, { recursive:true });
 let deepseekConfigured=await hasDeepseekKey(DATA_DIR),deepseekBusy=false;
 let desktopBridge,desktopRefresh={status:'idle'};
-function dashboard(value){return {...quotaDashboard(value),api:{...apiView(value,deepseekConfigured),claude:claudeApiView(value)},preferences:{theme:['light','dark','system'].includes(value.preferences?.theme)?value.preferences.theme:'system'},desktop:{connected:!!desktopBridge?.connected,refresh:desktopRefresh}};}
+function dashboard(value){
+  const quotas=quotaDashboard(value),api={...apiView(value,deepseekConfigured),claude:claudeApiView(value)};
+  const timestamps=[...quotas.pools.map(pool=>pool.observedAt),api.deepseek?.observedAt,api.claude?.observedAt].map(Date.parse).filter(Number.isFinite);
+  const lastUpdatedAt=timestamps.length?new Date(Math.max(...timestamps)).toISOString():null;
+  return {...quotas,api,lastUpdatedAt,preferences:{theme:['light','dark','system'].includes(value.preferences?.theme)?value.preferences.theme:'system'},desktop:{connected:!!desktopBridge?.connected,refresh:desktopRefresh}};
+}
 const KEY_FILE=path.join(DATA_DIR,'browser-key.json');
 let browserKey;
 try { browserKey=JSON.parse(await readFile(KEY_FILE,'utf8')).key; }
@@ -78,8 +84,8 @@ export const server = http.createServer(async (req, res) => {
   if (!hosts.includes(req.headers.host)) return json(res, 403, { error: '仅允许本机访问。' });
   const origin = req.headers.origin;
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
-  // Extension can only write quota reports; it cannot read dashboard, credentials or pairing key.
-  if(url.pathname==='/api/browser/report') {
+  // Paired extension may submit reports or hide its own collector window only.
+  if(['/api/browser/report','/api/browser/collector'].includes(url.pathname)) {
     if(!/^chrome-extension:\/\/[a-p]{32}$/.test(origin||'')) return json(res,403,{error:'仅接受已配对浏览器扩展。'});
     res.setHeader('Access-Control-Allow-Origin',origin); res.setHeader('Vary','Origin');
     if(req.method==='OPTIONS') {res.setHeader('Access-Control-Allow-Methods','POST');res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization');res.writeHead(204);return res.end();}
@@ -87,6 +93,13 @@ export const server = http.createServer(async (req, res) => {
     const supplied=req.headers.authorization?.replace(/^Bearer /,'')||'';
     if(!/^[a-f0-9]{64}$/.test(supplied) || !timingSafeEqual(Buffer.from(supplied),Buffer.from(browserKey))) return json(res,401,{error:'配对码无效。'});
     try {
+      if(url.pathname==='/api/browser/collector') {
+        const input=await body(req);
+        if(!validCollectorId(input.id)||Object.keys(input).some(key=>key!=='id'))return json(res,400,{error:'无效的采集窗口。'});
+        if(PORT!==4317||process.platform!=='win32')return json(res,503,{error:'隐藏采集仅支持 Windows 本机服务。'});
+        await desktopCommand(ROOT,['--hide-collector',input.id]);
+        return json(res,200,{ok:true});
+      }
       const input=await body(req); const isClaudeApi=input.provider==='claude-api';
       const balance=isClaudeApi?normalizeClaudeApi(input):null;
       const observations=isClaudeApi?[]:normalizeBrowser(input);
@@ -113,9 +126,15 @@ export const server = http.createServer(async (req, res) => {
       return json(res,200,{ok:true});
     }catch(error){return json(res,400,{error:error.message});}
   }
-  const publicNavigation=req.method==='GET' && files.has(url.pathname) && req.headers['sec-fetch-mode']==='navigate';
+  const publicNavigation=req.method==='GET' && (files.has(url.pathname)||url.pathname==='/collector') && req.headers['sec-fetch-mode']==='navigate';
   if (!publicNavigation && ((origin && !hosts.some(h => origin === `http://${h}`)) || req.headers['sec-fetch-site'] === 'cross-site')) return json(res, 403, { error: '不允许跨站请求。' });
   try {
+    if(req.method==='GET'&&url.pathname==='/collector') {
+      const id=url.searchParams.get('id');
+      if(!validCollectorId(id))return json(res,400,{error:'无效的采集窗口。'});
+      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});
+      return res.end(`<!doctype html><title>AIHUD-Collector-${id}</title><p>后台额度采集</p>`);
+    }
     if (req.method === 'GET' && url.pathname === '/api/dashboard') return json(res, 200, { ...dashboard(state), syncing });
     if(req.method==='GET' && url.pathname==='/api/events') {
       if(listeners.size>=16)return json(res,429,{error:'面板连接过多。'});
@@ -135,7 +154,13 @@ export const server = http.createServer(async (req, res) => {
     if(req.method==='POST' && url.pathname==='/api/desktop/refresh') {
       await body(req);
       if(desktopRefresh.status==='running')return json(res,409,{error:'后台正在刷新，请稍候。'});
-      if(!desktopBridge.connected)return json(res,503,{error:'请打开 Edge，并在扩展管理页重新加载 AI head-up dispaly 扩展。'});
+      if(!desktopBridge.connected){
+        if(PORT!==4317||process.platform!=='win32')return json(res,503,{error:'浏览器后台未连接。'});
+        try{await desktopCommand(ROOT,['--wake-browser']);}catch{return json(res,503,{error:'无法启动后台 Edge。'});}
+        for(let i=0;i<40&&!desktopBridge.connected;i++)await new Promise(resolve=>setTimeout(resolve,250));
+        if(!desktopBridge.connected)return json(res,503,{error:'后台 Edge 尚未连接，请确认扩展已开启并完成配对。'});
+        if(desktopRefresh.status==='running')return json(res,409,{error:'后台正在刷新，请稍候。'});
+      }
       if(desktopRefresh.startedAt&&Date.now()-Date.parse(desktopRefresh.startedAt)<60000)return json(res,429,{error:'请间隔至少 1 分钟再刷新。'});
       const jobId=randomUUID();desktopRefresh={id:jobId,status:'running',startedAt:new Date().toISOString(),error:null};publish();
       const local=async route=>{const response=await fetch(`http://127.0.0.1:${PORT}${route}`,{method:'POST',headers:{'Content-Type':'application/json','X-Headroom-Client':'local'},body:'{}',signal:AbortSignal.timeout(150000)});const result=await response.json();if(!response.ok)throw Error(result.error||'读取失败');return result;};
