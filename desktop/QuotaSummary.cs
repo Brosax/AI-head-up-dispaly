@@ -37,7 +37,9 @@ internal static class QuotaSummary {
             int count=complete.Count+(configured&&String.CompareOrdinal(Text(Get(api,"observedAt")),started)>=0?1:0);
             var claude=Map(Get(Map(Get(data,"api")),"claude"));bool enabled=Get(claude,"enabled") is bool&&(bool)Get(claude,"enabled");
             if(enabled&&String.CompareOrdinal(Text(Get(claude,"observedAt")),started)>=0)count++;
-            return new RefreshInfo {Running=true,Message="后台并行更新 · "+count+" / "+((configured?5:4)+(enabled?1:0))+" 家已完成"};
+            var openai=Map(Get(Map(Get(data,"api")),"openai"));bool openaiEnabled=Get(openai,"enabled") is bool&&(bool)Get(openai,"enabled");
+            if(openaiEnabled&&String.CompareOrdinal(Text(Get(openai,"observedAt")),started)>=0)count++;
+            return new RefreshInfo {Running=true,Message="后台并行更新 · "+count+" / "+((configured?5:4)+(enabled?1:0)+(openaiEnabled?1:0))+" 家已完成"};
         }
         if(status=="error")return new RefreshInfo {Message=Text(Get(job,"error"))};
         if(status=="ok")return new RefreshInfo {Message="更新完成 · 各家额度已独立显示"};
@@ -109,6 +111,12 @@ internal static class QuotaSummary {
             if(card.Metrics.Count==0)card.Metrics.Add(new Metric{Label="赠送余额 · USD",Value="暂无赠送额度",Status=Text(Get(account,"freshness"))});
             result.Add(card);
         }
+        var openai=Map(Get(Map(Get(data,"api")),"openai"));
+        if(Get(openai,"enabled") is bool&&(bool)Get(openai,"enabled")) {
+            var card=new Card{Id="openai-api",Name="OpenAI API"};
+            if(Get(openai,"remaining")!=null)card.Metrics.Add(new Metric{Label="可用余额 · USD",Value="$ "+Text(Get(openai,"remaining")),Status=Text(Get(openai,"freshness")),Detail="当前 OpenAI 平台页面余额"});
+            result.Add(card);
+        }
         return result;
     }
     public static List<string> Rows(string json) {
@@ -147,6 +155,8 @@ internal static class QuotaSummary {
         rows.Add("DeepSeek · " + (balances.Count == 0 ? "尚无余额" : String.Join(" / ", balances))
             + (balances.Count > 0 && Text(Get(api, "freshness")) != "fresh" ? "（上次）" : "")
             + (Get(api, "isAvailable") is bool && !(bool)Get(api, "isAvailable") ? " · API 不可用" : ""));
+        var openai=Map(Get(Map(Get(data,"api")),"openai"));
+        if(Get(openai,"enabled") is bool&&(bool)Get(openai,"enabled"))rows.Add("OpenAI API · "+(Get(openai,"remaining")==null?"尚无余额":"USD "+Text(Get(openai,"remaining"))+(Text(Get(openai,"freshness"))=="fresh"?"":"（上次）")));
         return rows;
     }
 }

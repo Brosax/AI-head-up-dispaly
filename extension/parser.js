@@ -3,6 +3,8 @@
   const text = node => (node?.innerText ?? node?.textContent ?? '').trim();
   const emailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
   const validPercent = n => Number.isFinite(n) && n >= 0 && n <= 100;
+  const normalize = value => value.normalize('NFKD').replace(/[\u0300-\u036f\uE000-\uF8FF\u200B-\u200D\uFEFF]/g,'').replace(/\s+/g,' ').trim();
+  const visible = node => !node.closest('[hidden],[aria-hidden="true"]');
   function resetDate(label, now = new Date()) {
     if (!label) return null;
     const value = label.replace(/\u00a0/g, ' ');
@@ -34,15 +36,21 @@
       return email ? { kind: 'email', value: email.toLowerCase() } : null;
     }
     if (provider === 'anthropic') {
-      const copy=doc.querySelector('button[aria-label="Copy organization ID"]');
-      const value=(text(copy)||copy?.textContent||'').replace(/[\uE000-\uF8FF]/g,'').trim();
-      const org=value.match(/^([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})(?:\s|$)/i)?.[1];
-      if(org)return {kind:'organization',value:org.toLowerCase()};
+      // Scope UUIDs to the explicit organization control; its accessible name is localized.
+      const ids=new Set();
+      for(const copy of doc.querySelectorAll('button[aria-label],button[title]')) {
+        if(!visible(copy))continue;
+        const label=normalize(copy.getAttribute('aria-label')||copy.getAttribute('title')||'');
+        if(!/^(?:copy (?:organization|organisation) (?:id|identifier)|copiar (?:el )?(?:id|identificador) de (?:la )?organizacion|复制组织\s*(?:id|标识符)|複製組織\s*(?:id|識別碼))$/i.test(label))continue;
+        const org=normalize(text(copy)||copy.textContent||'').match(/^([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/i)?.[1];
+        if(org)ids.add(org.toLowerCase());
+      }
+      if(ids.size)return ids.size===1?{kind:'organization',value:[...ids][0]}:null;
     }
     const dialog = doc.querySelector('[role="dialog"], dialog');
     if (!dialog) return null;
     if (provider === 'anthropic') {
-      const org = text(dialog).match(/Organization ID\s*([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})/i)?.[1];
+      const org = normalize(text(dialog)).match(/(?:Organization ID|(?:ID|Identificador) de (?:la )?organizacion|组织\s*ID|組織\s*ID)\s*[:：]?\s*([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})/i)?.[1];
       return org ? { kind: 'organization', value: org.toLowerCase() } : null;
     }
     const email = text(dialog).match(emailPattern)?.[0];
@@ -52,9 +60,16 @@
     const metrics = [];
     let plan = null;
     if (provider === 'anthropic') {
-      for (const meter of doc.querySelectorAll('[role="dialog"] [role="meter"]')) {
-        const label = text(doc.getElementById(meter.getAttribute('aria-labelledby')));
-        const window = /^Current session\b/i.test(label) ? 'Session (5hr)' : /^This week\b/i.test(label) ? 'Weekly' : null;
+      // content.js permits extraction only on a usage route. Settings may be a
+      // standalone page or a dialog, and aria-labelledby may reference multiple IDs.
+      const seen=new Map(),conflicts=new Set();
+      for (const meter of doc.querySelectorAll('[role="meter"]')) {
+        if(!visible(meter))continue;
+        const labelled=(meter.getAttribute('aria-labelledby')||'').split(/\s+/).filter(Boolean).map(id=>text(doc.getElementById(id))).filter(Boolean).join(' ');
+        // An additional label can identify the shared pool. Model-specific
+        // suffixes remain intact and must not be counted as the shared total.
+        const label = normalize(labelled||meter.getAttribute('aria-label')||'').replace(/\s*(?:\((?:all models|todos los modelos|所有模型)\)|(?:all models|todos los modelos|所有模型))$/i,'').trim();
+        const window = /^(?:Current session|Sesion actual|当前会话|当前会话额度|目前工作階段)$/i.test(label) ? 'Session (5hr)' : /^(?:This week|Esta semana|本周|本週)$/i.test(label) ? 'Weekly' : null;
         if (!window) continue; // Excludes product breakdown, credits, money and other meters.
         const raw = meter.getAttribute('aria-valuenow');
         const used = raw === null || raw === '' ? NaN : Number(raw);
@@ -63,12 +78,14 @@
         for (let i=0;i<5 && block;i++,block=block.parentElement) {
           // Never borrow a reset from the neighbouring quota window.
           if (block.querySelectorAll('[role="meter"]').length > 1) break;
-          resetLabel = text(block).match(/Resets\b[^\n]*/i)?.[0].replace(/\d+(?:\.\d+)?%\s*used.*$/i,'').trim() || '';
+          resetLabel = text(block).match(/(?:Resets\b|Se (?:restablece|reinicia)|重置时间|重設時間)[^\n]*/i)?.[0].replace(/\d+(?:[.,]\d+)?%\s*(?:used|usado|utilizado).*$/i,'').trim() || '';
           if (resetLabel) break;
         }
-        metrics.push({window, used, resetLabel, resetsAt:resetDate(resetLabel,now)});
+        if(seen.has(window)) {if(seen.get(window).used!==used)conflicts.add(window);continue;}
+        seen.set(window,{window, used, resetLabel, resetsAt:resetDate(resetLabel,now)});
       }
-      plan = text(doc.querySelector('[role="dialog"]')).match(/\bMax\s*\(\d+x\)|\bPro\b/)?.[0] || null;
+      metrics.push(...[...seen.values()].filter(metric=>!conflicts.has(metric.window)));
+      plan = text(doc.querySelector('[role="dialog"],dialog,main,[role="main"]')).match(/\bMax\s*\(\d+x\)|\bPro\b/)?.[0] || null;
     } else if (provider === 'google') {
       for (const [selector,window] of [['[data-testid="current-usage"]','Session (5hr)'],['[data-testid="weekly-usage"]','Weekly']]) {
         const block = doc.querySelector(selector); if (!block) continue;

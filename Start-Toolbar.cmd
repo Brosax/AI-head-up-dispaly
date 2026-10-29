@@ -1,2 +1,3 @@
 @echo off
-start "AI head-up dispaly" "%~dp0AI-head-up-dispaly.exe"
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File "%~dp0Start-Headroom.ps1" -Toolbar
+if errorlevel 1 pause

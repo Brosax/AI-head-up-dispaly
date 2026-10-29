@@ -29,6 +29,7 @@ internal sealed class TrayPopup : Form {
     readonly Action<bool> changeStartup;
     readonly ToolTip tips = new ToolTip();
     bool settingStartup;
+    int readingsHeight = 478;
 
     public TrayPopup(Action openToolbar, Action exit, Action<bool> setStartup) {
         open = openToolbar; quit = exit; changeStartup = setStartup;
@@ -162,8 +163,17 @@ internal sealed class TrayPopup : Form {
         tips.SetToolTip(status, status.Text);
     }
     public void SetLastUpdated(string text) { lastUpdated.Text=text; }
+    void FitReadings(Rectangle area) {
+        int height=Math.Min(Math.Max(180,readingsHeight),Math.Max(180,area.Height-152));
+        int delta=height-content.Height;
+        if(delta==0)return;
+        content.Height=height;
+        foreach(Control control in Controls)if(control!=content)control.Top+=delta;
+        ClientSize=new Size(392,height+128);
+    }
     public void Present(Point anchor) {
         var area = Screen.FromPoint(anchor).WorkingArea;
+        FitReadings(area);
         Location = new Point(Math.Max(area.Left + 8, Math.Min(anchor.X - Width + 12, area.Right - Width - 8)),
             Math.Max(area.Top + 8, Math.Min(anchor.Y - Height - 10, area.Bottom - Height - 8)));
         Show(); Activate();
@@ -173,33 +183,40 @@ internal sealed class TrayPopup : Form {
         while (content.Controls.Count > 0) { var old = content.Controls[0]; content.Controls.Remove(old); old.Dispose(); }
         int y = 0;
         if (cards != null) foreach (var card in cards) {
-            bool money=card.Id=="deepseek"||card.Id=="claude-api";
+            bool money=card.Id=="deepseek"||card.Id=="claude-api"||card.Id=="openai-api";
             bool pairedMoney=card.Id=="deepseek";
             int count=Math.Max(1,card.Metrics.Count);
             int rowHeight=pairedMoney?66:count*48+14;
             if(!String.IsNullOrEmpty(card.Account))rowHeight+=18;
-            var row=new Panel {Location=new Point(0,y),Size=new Size(344,rowHeight),BackColor=Paper};
-            Color accent=card.Id=="openai"?Color.FromArgb(126,226,191):card.Id=="anthropic"||card.Id=="claude-api"?Color.FromArgb(255,175,126):card.Id=="xai"?Color.FromArgb(155,187,243):card.Id=="google"?Color.FromArgb(174,149,246):Color.FromArgb(113,199,232);
+            // Reserve the scrollbar gutter so a short screen never clips amounts.
+            var row=new Panel {Location=new Point(0,y),Size=new Size(326,rowHeight),BackColor=Paper};
+            Color accent=card.Id=="openai"||card.Id=="openai-api"?Color.FromArgb(126,226,191):card.Id=="anthropic"||card.Id=="claude-api"?Color.FromArgb(255,175,126):card.Id=="xai"?Color.FromArgb(155,187,243):card.Id=="google"?Color.FromArgb(174,149,246):Color.FromArgb(113,199,232);
             var dot=new Panel {Location=new Point(0,29),Size=new Size(9,9),BackColor=accent};
             using(var circle=Rounded(9,9,9))dot.Region=new Region(circle);row.Controls.Add(dot);
             row.Controls.Add(Label(card.Name,18,18,91,30,new Font("Segoe UI",10F,FontStyle.Bold),Ink));
             if(!String.IsNullOrEmpty(card.Account)) {var account=Label(card.Account,20,rowHeight-22,306,16,new Font(Font.FontFamily,7F),Muted);tips.SetToolTip(account,card.Account);row.Controls.Add(account);}
-            if(card.Metrics.Count==0)row.Controls.Add(Label("尚未读取",112,24,232,26,Font,Muted));
+            if(card.Metrics.Count==0)row.Controls.Add(Label("尚未读取",112,24,214,26,Font,Muted));
             for(int i=0;i<card.Metrics.Count;i++) {
-                var metric=card.Metrics[i];int x=112+(pairedMoney?i%2*120:0),top=pairedMoney?0:i*48,width=pairedMoney?112:232;
+                var metric=card.Metrics[i];int x=112+(pairedMoney?i%2*111:0),top=pairedMoney?i/2*48:i*48,width=pairedMoney?103:214;
                 string stale=metric.Status=="fresh"?"":" · 上次";
                 string caption=metric.Label+stale;
-                var label=Label(caption,x,top+6,metric.Reset==null?width:58,17,new Font(Font.FontFamily,7F),Muted);
+                int captionWidth=money?86:58;
+                var label=Label(caption,x,top+6,metric.Reset==null?width:captionWidth,17,new Font(Font.FontFamily,7F),Muted);
                 tips.SetToolTip(label,metric.Detail??caption);row.Controls.Add(label);
-                if(!String.IsNullOrEmpty(metric.Reset)) {var reset=Label(metric.Reset,x+55,top+6,width-55,17,new Font(Font.FontFamily,7F),Muted);reset.TextAlign=ContentAlignment.MiddleRight;tips.SetToolTip(reset,metric.Detail??metric.Reset);row.Controls.Add(reset);}
+                if(!String.IsNullOrEmpty(metric.Reset)) {var reset=Label(metric.Reset,x+captionWidth,top+6,width-captionWidth,17,new Font(Font.FontFamily,7F),Muted);reset.TextAlign=ContentAlignment.MiddleRight;tips.SetToolTip(reset,metric.Detail??metric.Reset);row.Controls.Add(reset);}
                 Control amount=money
                     ?(Control)Label(metric.Value,x,top+25,width,31,new Font("Segoe UI",pairedMoney?17F:18F,FontStyle.Regular),Ink)
                     :new QuotaPill {Text=metric.Value,Provider=card.Id,Progress=metric.Percent,Location=new Point(x,top+26),Size=new Size(width,27),Font=new Font("Segoe UI",13F,FontStyle.Bold)};
                 amount.AccessibleName=card.Name+" "+caption+" "+metric.Value+" "+metric.Reset;tips.SetToolTip(amount,metric.Detail??metric.Value);row.Controls.Add(amount);
             }
-            row.Controls.Add(new Panel {Location=new Point(0,rowHeight-1),Size=new Size(344,1),BackColor=Tone(Color.FromArgb(217,224,207))});
+            row.Controls.Add(new Panel {Location=new Point(0,rowHeight-1),Size=new Size(326,1),BackColor=Tone(Color.FromArgb(217,224,207))});
             content.Controls.Add(row);y+=row.Height;
         }
+        readingsHeight=y;
+        content.AutoScrollMinSize=new Size(0,y);
+        var area=Visible?Screen.FromControl(this).WorkingArea:Screen.FromPoint(Cursor.Position).WorkingArea;
+        FitReadings(area);
+        if(Visible)Top=Math.Max(area.Top+8,Math.Min(Top,area.Bottom-Height-8));
         content.ResumeLayout();
         if (dark) Retint(content, true);
         status.Text = failed ? "本机连接失败 · 保留上次读数" : refreshMessage ?? "已保存的读数 · 点击刷新获取最新额度";

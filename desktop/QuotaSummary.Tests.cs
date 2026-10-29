@@ -39,7 +39,13 @@ internal static class QuotaSummaryTests {
         Check(QuotaSummary.ResetText("Session (5hr)","2026-10-25T17:30:00Z",now)=="今天 18:30 重置","Five-hour reset must use Madrid local clock");
         Check(QuotaSummary.ResetText("Session (5hr)","2026-10-26T00:30:00Z",now)=="明天 01:30 重置","Reset day must be explicit across midnight");
         Check(QuotaSummary.ResetText("Weekly","2026-10-28T17:30:00Z",now)=="还有 3 天重置","Weekly reset must show remaining days");
-        Console.WriteLine("PASS: 17 tray summary checks");
+        string openaiJson="{\"providers\":[],\"pools\":[],\"api\":{\"openai\":{\"enabled\":true,\"remaining\":\"82.00\",\"freshness\":\"stale\",\"observedAt\":\"2026-10-29T10:00:00Z\"}},\"desktop\":{\"refresh\":{\"status\":\"running\",\"startedAt\":\"2026-10-29T09:59:00Z\"}}}";
+        var openaiCard=QuotaSummary.Cards(openaiJson).Find(card=>card.Id=="openai-api");
+        Check(openaiCard.Metrics[0].Value=="$ 82.00"&&openaiCard.Metrics[0].Percent==null&&openaiCard.Metrics[0].Status=="stale","OpenAI API stays money, preserves stale amount and never joins Codex percentages");
+        Check(QuotaSummary.Cards(openaiJson.Replace("\"82.00\"","null")).Find(card=>card.Id=="openai-api").Metrics.Count==0,"Unknown OpenAI balance never becomes zero");
+        Check(QuotaSummary.Rows(openaiJson).Exists(row=>row.Contains("OpenAI API · USD 82.00（上次）")),"Text summary includes OpenAI balance independently");
+        Check(QuotaSummary.Refresh(openaiJson).Message.Contains("1 / 5"),"Progress counts the additional OpenAI API source");
+        Console.WriteLine("PASS: 21 tray summary checks");
         return 0;
     }
 }

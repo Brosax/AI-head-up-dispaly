@@ -161,3 +161,22 @@ test('Claude API browser reports replace one organization, preserve others and n
   const saved=await readFile(path.join(directory,'state.json'),'utf8');assert.ok(!saved.includes(payload.identity.value));
   assert.equal((await post('/api/browser/report',{...payload,balance:{currency:'USD',purchased:'unknown',promotional:[]}},headers)).status,400);
 });
+
+test('OpenAI API reports replace the current snapshot without adding Codex subscription pools',async()=>{
+  const {key}=await (await post('/api/browser/pairing',{})).json();
+  const headers={Origin:'chrome-extension://'+'a'.repeat(32),Authorization:`Bearer ${key}`};
+  const before=await (await fetch(base+'/api/dashboard')).json();
+  assert.equal(before.api.openai.remaining,null);
+  const payload={provider:'openai-api',status:'ok',identity:{kind:'platform-view',value:'current'},observedAt:new Date().toISOString(),balance:{currency:'USD',remaining:'82.00'}};
+  assert.equal((await post('/api/browser/report',payload,headers)).status,200);
+  payload.balance.remaining='81.50';assert.equal((await post('/api/browser/report',payload,headers)).status,200);
+  let data=await (await fetch(base+'/api/dashboard')).json();
+  assert.equal(data.api.openai.remaining,'81.50');assert.equal(data.api.openai.freshness,'fresh');
+  assert.equal(data.pools.length,before.pools.length);assert.equal(data.providers.length,4);
+  assert.ok(data.lastUpdatedAt>=payload.observedAt);
+  assert.equal((await post('/api/browser/report',{provider:'openai-api',status:'error',errorCode:'usage-missing'},headers)).status,200);
+  data=await (await fetch(base+'/api/dashboard')).json();
+  assert.equal(data.api.openai.remaining,'81.50');assert.equal(data.api.openai.freshness,'stale');
+  assert.match(data.desktop.refresh.error,/OpenAI API/);
+  assert.equal((await post('/api/browser/report',{...payload,balance:{currency:'USD',remaining:null}},headers)).status,400);
+});

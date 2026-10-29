@@ -13,7 +13,7 @@ test('Claude reads the explicit organization control without relying on dialog t
   assert.deepEqual(identity(doc,'anthropic'),{kind:'organization',value:id});
   assert.equal(identity(documentOf(`<p>${id}</p>`),'anthropic'),null);
 });
-function meter(label,value,extra='') {return `<section><div><span id="${label}">${label}</span><span>Resets Saturday 6:00 PM</span></div><div><div><div role="meter" aria-labelledby="${label}" aria-valuenow="${value}"></div></div><span>${value}% used</span></div>${extra}</section>`;}
+function meter(label,value,extra='') {const id=label.replaceAll(' ','-');return `<section><div><span id="${id}">${label}</span><span>Resets Saturday 6:00 PM</span></div><div><div><div role="meter" aria-labelledby="${id}" aria-valuenow="${value}"></div></div><span>${value}% used</span></div>${extra}</section>`;}
 test('Claude reads session/week meters, excludes product percentages and credit balances',()=>{
   const doc=documentOf(`<div role="dialog">Max (5x)${meter('Current session',50)}${meter('This week',6)}${meter('Claude Code',100)}${meter('Included credit',0)}</div>`);
   const result=extract(doc,'anthropic',now);

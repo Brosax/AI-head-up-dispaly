@@ -2,20 +2,20 @@
 
 把 AI 订阅额度和 API 余额放进一个 Windows 托盘面板。点击更新，后台并行读取；每家完成后立即显示。
 
-<img src="docs/images/ai-head-up-dispaly-dark.png" alt="AI head-up dispaly 暗色托盘面板，展示六家额度和底部四个操作图标" width="392">
+<img src="docs/images/ai-head-up-dispaly-dark.png" alt="AI head-up dispaly 暗色托盘面板，展示七项额度和底部四个操作图标" width="392">
 
 *预览使用虚构演示数据，不包含真实账户或余额。*
 
 ## 功能
 
-- **统一查看**：Codex、Claude、Grok、Gemini、DeepSeek API、Claude API。
+- **统一查看**：Codex、Claude、Grok、Gemini、DeepSeek API、Claude API、OpenAI API。
 - **共享额度去重**：Claude 网页版与 Claude Code 共享订阅池；短周期与周额度分别显示，不相加。
 - **直观看剩余量**：渐变胶囊按剩余百分比填充，旁边显示重置倒计时或时间。
 - **按需后台刷新**：不定时采集、不在浏览器启动时采集；各平台并行更新，失败保留旧值。
 - **隐藏网页采集**：点击刷新时使用独立采集窗口，先以最小化且不聚焦的方式创建，再由桌面程序隐藏；确认隐藏后才打开各家用量页，结束后关闭。不会在日常浏览窗口添加标签页。创建瞬间任务栏可能短暂出现图标。Edge 可在后台运行；未登录或扩展未连接时会保留旧数据并提示。
 - **系统托盘**：关闭工具栏后继续驻留；右键查看额度，底部直接切换亮暗、刷新、打开工具栏或退出。
 - **快速打开**：预先准备右键面板，点击时先显示缓存额度，再后台更新状态；面板缩小底部留白，操作图标保持居中。
-- **明确失败来源**：分别显示 Claude 订阅、Claude API、Grok 等平台的失败原因。Claude 优先读取账户页的组织 ID 控件，识别超时后仅重试一次。
+- **明确失败来源**：分别显示 Claude 订阅、Claude API、Grok 等平台的失败原因。Claude 优先读取账户页的组织 ID 控件；账户、用量或采集脚本暂时不可用时，只替换自己的临时采集页重试一次。
 - **本地保存**：无云同步、遥测或远程数据库。DeepSeek 密钥使用当前 Windows 用户的 DPAPI 加密。
 
 ## 数据来源
@@ -28,8 +28,11 @@
 | Gemini | Edge 扩展读取官方用量组件 | 当前周期和周额度 |
 | DeepSeek API | 官方只读余额接口 | CNY / USD 独立余额 |
 | Claude API | Edge 扩展读取账单页文字 | 赠送余额、原始额度、适用范围和 UTC 到期日 |
+| OpenAI API | Edge 扩展读取官方 Platform 首页的 Credit remaining 卡片 | 当前平台页面的 USD 可用余额 |
 
 Claude API 显示当前登录 Console 账单页的快照，不依赖账户菜单或组织 ID，不宣称验证了组织身份。充值金额按界面设计隐藏；API 金额不转换为订阅百分比。
+
+OpenAI API 复用 Edge 中已登录的 [Platform 首页](https://platform.openai.com/home)，无需 API Key。余额保留为一份当前页面快照，不宣称验证了组织身份，不与历史组织读数相加。读取不到时保留旧余额并标为「上次读数」，首次未读取显示未知。API credits 与登录 ChatGPT / Codex 的使用限额分别计量，参见 [OpenAI 官方说明](https://developers.openai.com/api/docs/guides/chatgpt-api-credits)。
 
 Codex 的读数不代表 ChatGPT 所有网页功能的总额度。套餐名称、可用窗口及重置规则以提供方实际页面为准。
 
@@ -50,7 +53,7 @@ Codex 的读数不代表 ChatGPT 所有网页功能的总额度。套餐名称�
 ```powershell
 npm.cmd ci
 npm.cmd run build:desktop
-.\AI-head-up-dispaly.exe
+.\Start-Headroom.cmd
 ```
 
 仓库包含源码，不包含本机构建的 EXE。构建命令会生成 `AI-head-up-dispaly.exe` 和 `desktop/CredentialVault.exe`。
@@ -59,23 +62,25 @@ npm.cmd run build:desktop
 
 启动后可从右下角系统托盘找到 AI head-up dispaly。左键打开独立工具栏，右键直接查看额度；图标可能收在 Windows 的「˄」里。关闭工具栏不会退出托盘。
 
-完整面板位于 [http://127.0.0.1:4317](http://127.0.0.1:4317)，工具栏位于 [http://127.0.0.1:4317/toolbar](http://127.0.0.1:4317/toolbar)。只运行网页服务可使用 `npm.cmd start`。
+`Start-Headroom.cmd`、`Start-Toolbar.cmd` 和 `Start-Headroom.ps1` 都通过 Windows 桌面启动同一个托盘程序，关闭启动终端或 Codex 不会连带退出。只在后台驻留可运行 `.\Start-Headroom.ps1 -Background`。也可在文件资源管理器中双击 EXE；从 Codex 等管理子进程的终端启动时，请使用上述脚本，避免直接启动 EXE 或单独的网页服务。
+
+只保留托盘右键速览和紧凑额度工具栏。工具栏位于 [http://127.0.0.1:4317/toolbar](http://127.0.0.1:4317/toolbar)，根地址也打开同一工具栏。没有全局快捷键、单平台刷新或独立完整面板。只运行网页服务可使用 `npm.cmd start`。
 
 ### 配对浏览器扩展
 
 1. 在 Edge 打开 `edge://extensions`，开启「开发人员模式」。
 2. 点击「加载解压缩的扩展」，选择项目的 `extension` 文件夹。
-3. 打开 AI head-up dispaly 完整面板，在「接入与数据」中获取配对码。
+3. 打开额度工具栏，点击底部「⇄」复制扩展配对码。
 4. 点击 Edge 工具栏里的 AI head-up dispaly 扩展，粘贴配对码并开启。
 5. 确保需要采集的网站已经登录，再点击 AI head-up dispaly 的刷新按钮。
 
 扩展使用已有登录，创建自己的后台临时设置页，读取完成后关闭。临时页丢失时会新建一次重试，不重载或关闭用户自己的页面。更新扩展源码后，需要在 Edge 扩展管理页点击一次「重新加载」，已有配对保留。
 
-扩展权限限于 `claude.ai`、`platform.claude.com`、`grok.com`、`gemini.google.com` 和本机 `127.0.0.1:4317`。没有 cookies、history、debugger 权限；只在明确收到采集指令且进入匹配的设置或用量路径后读取相关 DOM。
+扩展权限限于 `claude.ai`、`platform.claude.com`、`platform.openai.com`、`grok.com`、`gemini.google.com` 和本机 `127.0.0.1:4317`。没有 cookies、history、debugger 权限；只在明确收到采集指令且进入匹配的设置、用量路径或 OpenAI `/home` 后读取相关 DOM。升级至 0.8.1 后重新加载扩展，并允许新增的 OpenAI Platform 站点权限。
 
 ### 连接 DeepSeek
 
-在工具栏点击 DeepSeek 名称，或在完整面板点击「连接 API」，填写已有 API Key。密钥只应输入本机表单。
+在工具栏点击 DeepSeek 名称，填写已有 API Key。密钥只应输入本机表单。
 
 连接时调用官方 `GET https://api.deepseek.com/user/balance`，验证成功后以 Windows DPAPI 加密保存；不会调用模型。也支持 `DEEPSEEK_API_KEY` 环境变量，设置后需重启服务。
 
@@ -91,7 +96,7 @@ npm.cmd run build:desktop
 }
 ```
 
-也可以在完整面板导入 `usage --json` 输出，或手动记录作为备用。
+已有额度历史和配对数据会保留。
 
 ## 托盘操作
 
@@ -122,7 +127,7 @@ npm.cmd run build:desktop
 
 ## 当前限制与排查
 
-- 网页读取依赖提供方页面结构和语言；已适配的主要页面为 Claude 英文、Grok 西班牙文及 Gemini 中文。页面改版后可能需要更新解析器。
+- 网页读取依赖提供方页面结构和语言；Claude 订阅解析支持英文、西班牙文和中文的组织 ID 与用量标签，以及弹窗和独立设置页；Grok 支持西班牙文，Gemini 支持中文。新增 Claude 变体通过模拟页面回归测试，实际账户页面仍需刷新验证。页面改版后可能需要更新解析器。
 - **Grok 的账户身份读取目前仍可能失败**，届时保留旧值并显示读取失败。
 - 浏览器、扩展和本机服务都需要运行。出现未连接提示时，先确认 Edge 已打开、扩展已配对。
 - 网站登录失效时，在原网站重新登录；不要向聊天、Issue 或仓库提交凭据。
@@ -138,11 +143,13 @@ npm.cmd run test:desktop
 
 `test:desktop` 在 Windows 上编译并运行原生额度、重置时间和进度胶囊像素检查。GitHub Actions 会从源码构建并运行这两组检查。
 
+启动生命周期检查需在 Windows 桌面会话中单独运行：先退出托盘和本地服务，再执行 `powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File scripts/test-launch-lifetime.ps1`。测试会终止专门创建的启动进程组，确认托盘和服务继续运行且没有重复实例；成功后保留托盘。追加 `-DirectLaunchControl` 可验证旧式直接启动会被此测试拒绝。该检查不重启 Codex，也不修改开机启动设置。
+
 ```text
 desktop/     Windows 托盘、启动器、DPAPI 组件
 extension/   Edge DOM 采集与本机桥接
 lib/         额度去重、来源适配与余额校验
-public/      完整面板和紧凑工具栏
+public/      紧凑额度工具栏
 scripts/     Windows 构建与原生测试入口
 test/        Node.js 回归测试
 server.mjs   本机 HTTP / WebSocket 服务

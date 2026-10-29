@@ -6,3 +6,26 @@
 /* One-screen overview: no large masthead or dropdown controls. */
 body.ledger{padding:12px 18px 0}header{padding:0 0 9px;align-items:center}.compact-heading{font-size:11px;color:var(--ledger-muted);font-weight:500}.settings-button{font-size:16px;padding:0 2px}.ledger article.quota-row,.ledger .balance-row{padding:11px 0}.metrics{gap:8px}.metric-caption{margin-bottom:4px;line-height:1.35}.ledger .value{height:25px;font-size:16px;line-height:23px}.provider-heading{padding-top:15px}.provider-heading .state{font-size:8px;margin-top:2px}.ledger .balance-name{margin-top:15px}.balance-values{gap:8px}.balance-value{font-size:22px;line-height:1.15;margin-top:3px}.balance-values.currencies .balance-value{font-size:21px}.balance-note{font-size:8px;margin-top:2px}.ledger footer{padding:9px 0 10px}.bottom-actions{margin-top:8px}.icon-action{width:40px;height:38px;font-size:25px}.footer-status{font-size:9px}#message{font-size:9px;margin-top:3px}@media(max-width:360px){body.ledger{padding:10px 12px 0}}
 #refresh-icon{display:block;transform-origin:center;flex:none}.refresh-action{align-items:center;justify-items:center;line-height:1}
+
+/* Seven-source layout: keep controls visible while only the readings scroll. */
+html{height:100%;overflow:hidden}
+body.ledger{height:100vh;height:100dvh;min-width:280px;display:flex;flex-direction:column;overflow:hidden}
+.ledger header,.ledger footer{flex-shrink:0}
+.ledger main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--ledger-line) transparent;padding-right:4px}
+.ledger footer{position:static;margin-top:0}
+.ledger article.quota-row,.ledger .balance-row{grid-template-columns:104px minmax(0,1fr);column-gap:10px}
+.ledger .balance-name{align-self:center;margin-top:0}
+.ledger .balance-row[data-provider=openai-api]{--accent:#83e4bf}
+.balance-value{font-size:23px;line-height:1.25;letter-spacing:-.4px}
+.balance-values.currencies{gap:8px}
+.balance-values.currencies .balance-value{font-size:21px}
+.footer-status{align-items:baseline;flex-wrap:wrap;gap:3px 10px}
+#hint{margin-left:auto}
+#message{max-height:3em;overflow-y:auto;overflow-wrap:anywhere}
+@media(max-width:360px){
+  .ledger article.quota-row,.ledger .balance-row{grid-template-columns:91px minmax(0,1fr);column-gap:8px}
+  .provider-heading h2,.ledger .balance-name{font-size:12px;gap:7px}
+  .balance-caption{font-size:8px;flex-wrap:wrap}
+  .balance-value,.balance-values.currencies .balance-value{font-size:19px}
+  .metric-caption{white-space:normal;align-items:baseline}
+}

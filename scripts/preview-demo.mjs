@@ -8,7 +8,7 @@ const pool=(provider,window,remaining,hours)=>({provider,window,remaining,resets
 const demo={providers:[],pools:[
   pool('openai','Weekly',78,144),pool('anthropic','Session (5hr)',64,3),pool('anthropic','Weekly',41,120),
   pool('xai','Weekly',32,48),pool('google','Session (5hr)',100,4),pool('google','Weekly',82,72),
-],api:{deepseek:{freshness:'fresh',isAvailable:true,balances:[{currency:'CNY',total:'18.60'},{currency:'USD',total:'4.20'}]},
+],api:{openai:{enabled:true,remaining:'42.80',freshness:'fresh'},deepseek:{freshness:'fresh',isAvailable:true,balances:[{currency:'CNY',total:'18.60'},{currency:'USD',total:'4.20'}]},
   claude:{enabled:true,accounts:[{freshness:'fresh',purchased:'0.00',promotional:[{remaining:'75.25',granted:'100.00',expiresOn:iso(336).slice(0,10),appliesTo:'API, Playground'}]}]}},desktop:{connected:true}};
 const directory=path.join(root,'artifacts','demo');mkdirSync(directory,{recursive:true});
 const fixture=path.join(directory,'dashboard.json');writeFileSync(fixture,JSON.stringify(demo));

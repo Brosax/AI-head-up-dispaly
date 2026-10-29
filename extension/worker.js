@@ -5,6 +5,7 @@ const PROVIDERS = {
   anthropic: { account:'https://claude.ai/settings/account', usage:'https://claude.ai/settings/usage' },
   xai: { account:'https://grok.com/?_s=home', usage:'https://grok.com/?_s=usage' },
   google: { usage:'https://gemini.google.com/usage' },
+  'openai-api': { usage:'https://platform.openai.com/home' },
 };
 let running = false;
 const sleep = ms => new Promise(resolve=>setTimeout(resolve,ms));
@@ -13,20 +14,38 @@ async function report(token,payload) {
   const response = await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify(payload),signal:AbortSignal.timeout(20000)});
   if (!response.ok) throw new Error(response.status===401?'配对码无效，请重新配对':'本地面板拒绝了采集结果');
 }
+async function messageWithin(tabId,stage,remaining) {
+  let timer;
+  try {
+    return await Promise.race([
+      chrome.tabs.sendMessage(tabId,{type:'headroom-probe',stage}),
+      new Promise((_,reject)=>{timer=setTimeout(()=>{const error=new Error('页面采集脚本响应超时');error.code='probe-timeout';reject(error);},remaining);}),
+    ]);
+  } finally { clearTimeout(timer); }
+}
 async function probe(tabId,stage,requireIdentity=false) {
   let reason='script-unavailable';
+  const deadline=Date.now()+30000;
   for(let i=0;i<60;i++) {
+    const remaining=deadline-Date.now();
+    if(remaining<=0)break;
     try {
       // The content script knows whether the quota DOM is ready. Do not wait for
       // unrelated images/analytics to finish the entire page load.
-      const result = await chrome.tabs.sendMessage(tabId,{type:'headroom-probe',stage});
+      // A frozen document can leave sendMessage pending forever. Race the
+      // response against this stage's remaining deadline and always clear it.
+      const result = await messageWithin(tabId,stage,remaining);
+      if(result?.error==='parser-failed'){const error=new Error('页面采集脚本执行失败');error.code='parser-failed';throw error;}
       const ready=stage==='identity'?!!result?.identity:!!(result?.metrics?.length||result?.balance);
       reason=result?.error==='wrong-page'?'wrong-page':!ready?(stage==='identity'?'identity-missing':'usage-missing'):requireIdentity&&!result?.identity?'identity-missing':null;
       if (ready && (!requireIdentity || result?.identity)) return result;
     } catch(error) {
       if(missingTab(error)){error.code='tab-closed';throw error;}
+      if(error.code==='parser-failed')throw error;
+      reason=error.code==='probe-timeout'?'probe-timeout':/Receiving end does not exist|Could not establish connection/i.test(error.message||'')?'receiver-missing':/message port closed|message channel closed/i.test(error.message||'')?'receiver-disconnected':'probe-failed';
     }
-    await sleep(500);
+    if(Date.now()>=deadline)break;
+    await sleep(Math.min(500,deadline-Date.now()));
   }
   const error=new Error('未读到用量或账户身份，请检查登录、页面语言或页面结构');error.code=reason;throw error;
 }
@@ -79,7 +98,8 @@ async function cycle() {
             break;
           } catch(error) {
             if(missingTab(error))error.code='tab-closed';
-            const recoverable=error.code==='tab-closed'||provider==='claude-api'&&error.code==='script-unavailable'||provider==='anthropic'&&error.code==='identity-missing';
+            const recoverablePage=['anthropic','claude-api','openai-api'].includes(provider);
+            const recoverable=error.code==='tab-closed'||recoverablePage&&['script-unavailable','receiver-missing','receiver-disconnected','probe-timeout','probe-failed','identity-missing','usage-missing'].includes(error.code);
             if(attempt===1||!recoverable)throw error;
             // The old ID may no longer exist. Replace our temporary tab once,
             // instead of repeatedly messaging/reloading a dead ID.
@@ -104,7 +124,7 @@ async function cycle() {
     if(collector?.id!==undefined)try{await chrome.windows.remove(collector.id);}catch{}
     running=false; await chrome.storage.local.set({lastRun:new Date().toISOString()});
   }
-  const names={'claude-api':'Claude API',anthropic:'Claude 订阅',xai:'Grok',google:'Gemini'};
+  const names={'claude-api':'Claude API','openai-api':'OpenAI API',anthropic:'Claude 订阅',xai:'Grok',google:'Gemini'};
   return {ok:errors.length===0,completed:Object.keys(PROVIDERS).length-errors.length,error:errors.length?errors.map(id=>names[id]).join('、')+'读取失败，请查看各平台状态。':null};
 }
 // Migrate the previous periodic mode. Nothing is collected on a timer or browser startup.

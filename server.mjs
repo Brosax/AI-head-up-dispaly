@@ -12,6 +12,7 @@ import {desktopCommand,validCollectorId} from './lib/collector-window.mjs';
 import {browserFailures} from './lib/refresh-errors.mjs';
 import { normalizeBrowser } from './lib/browser.mjs';
 import {normalizeClaudeApi,claudeApiView} from './lib/claude-api.mjs';
+import {normalizeOpenaiApi,openaiApiView} from './lib/openai-api.mjs';
 import {fetchBalance,apiView} from './lib/deepseek.mjs';
 import {hasDeepseekKey,readDeepseekKey,saveDeepseekKey} from './lib/vault.mjs';
 
@@ -23,8 +24,8 @@ await mkdir(DATA_DIR, { recursive:true });
 let deepseekConfigured=await hasDeepseekKey(DATA_DIR),deepseekBusy=false;
 let desktopBridge,desktopRefresh={status:'idle'};
 function dashboard(value){
-  const quotas=quotaDashboard(value),api={...apiView(value,deepseekConfigured),claude:claudeApiView(value)};
-  const timestamps=[...quotas.pools.map(pool=>pool.observedAt),api.deepseek?.observedAt,api.claude?.observedAt].map(Date.parse).filter(Number.isFinite);
+  const quotas=quotaDashboard(value),api={...apiView(value,deepseekConfigured),claude:claudeApiView(value),openai:openaiApiView(value)};
+  const timestamps=[...quotas.pools.map(pool=>pool.observedAt),api.deepseek?.observedAt,api.claude?.observedAt,api.openai?.observedAt].map(Date.parse).filter(Number.isFinite);
   const lastUpdatedAt=timestamps.length?new Date(Math.max(...timestamps)).toISOString():null;
   const previousErrors=browserFailures(value);
   const refresh=desktopRefresh.status==='idle'&&previousErrors.length?{status:'error',error:previousErrors.join('；')}:desktopRefresh;
@@ -70,8 +71,7 @@ async function body(req) {
 }
 
 const files = new Map([
-  ['/', ['index.html', 'text/html']], ['/app.js', ['app.js', 'text/javascript']],
-  ['/style.css', ['style.css', 'text/css']], ['/demo.js', ['demo.js', 'text/javascript']],
+  ['/', ['toolbar.html', 'text/html']],
   ['/favicon.svg', ['favicon.svg', 'image/svg+xml']],
   ['/toolbar', ['toolbar.html', 'text/html']], ['/toolbar.js', ['toolbar.js','text/javascript']],
   ['/toolbar.css', ['toolbar.css','text/css']], ['/client.js', ['client.js','text/javascript']],
@@ -103,16 +103,21 @@ export const server = http.createServer(async (req, res) => {
         await desktopCommand(ROOT,['--hide-collector',input.id]);
         return json(res,200,{ok:true});
       }
-      const input=await body(req); const isClaudeApi=input.provider==='claude-api';
-      const balance=isClaudeApi?normalizeClaudeApi(input):null;
-      const observations=isClaudeApi?[]:normalizeBrowser(input);
+      const input=await body(req); const isClaudeApi=input.provider==='claude-api',isOpenaiApi=input.provider==='openai-api';
+      const balance=isClaudeApi?normalizeClaudeApi(input):isOpenaiApi?normalizeOpenaiApi(input):null;
+      const observations=isClaudeApi||isOpenaiApi?[]:normalizeBrowser(input);
       await save(draft=>{
         draft.browser ||= {};
         const previous=draft.browser[input.provider]||{};
-        const reasons={'script-unavailable':'页面采集脚本未就绪，请检查登录或重新加载扩展。','tab-closed':'临时采集页再次关闭，自动恢复未完成，请重试。','wrong-page':'页面跳转到了其他地址，请检查登录状态。','identity-missing':'页面账户名称或组织标识尚未读取到。','usage-missing':'用量或账单余额文字尚未读取到。','report-timeout':'向本机提交读数超时，请重试。','report-failed':'采集结果提交失败，请重试。'};
+        const reasons={'receiver-missing':'页面没有接收到采集请求；扩展脚本尚未加载。','receiver-disconnected':'页面正在跳转，采集连接已中断。','probe-timeout':'页面采集请求在 30 秒内没有响应。','probe-failed':'浏览器拒绝或无法完成页面采集请求。','parser-failed':'采集脚本已启动，但解析页面时出错。','script-unavailable':'页面采集脚本未就绪，请检查登录或重新加载扩展。','tab-closed':'临时采集页再次关闭，自动恢复未完成，请重试。','wrong-page':'页面跳转到了其他地址，请检查登录状态。','identity-missing':'页面账户名称或组织标识尚未读取到。','usage-missing':'用量或账单余额文字尚未读取到。','report-timeout':'向本机提交读数超时，请重试。','report-failed':'采集结果提交失败，请重试。'};
         const detail=Object.hasOwn(reasons,input.errorCode)?reasons[input.errorCode]:'网页采集失败，请检查浏览器登录和扩展状态。';
         draft.browser[input.provider]={...previous,status:input.status,attemptedAt:new Date().toISOString(),error:input.status==='error'?detail:input.status==='ok'?null:previous.error||null};
         if(input.status==='ok') {
+          if(isOpenaiApi) {
+            draft.api||={};draft.api.openai=balance;
+            draft.browser[input.provider].completedAt=input.observedAt;
+            return;
+          }
           if(isClaudeApi) {
             draft.api||={};draft.api.claude||={accounts:[]};
             draft.api.claude.accounts=[...draft.api.claude.accounts.filter(a=>a.accountKey!==balance.accountKey),balance];

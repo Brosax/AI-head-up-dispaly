@@ -1,29 +1,32 @@
-﻿param([switch]$Toolbar)
+param([switch]$Toolbar, [switch]$Background)
 $ErrorActionPreference = 'Stop'
-$headroomRoot = $PSScriptRoot
-$headroomUrl = 'http://127.0.0.1:4317'
-$headroomRunning = $false
+$headroomExecutable = Join-Path $PSScriptRoot 'AI-head-up-dispaly.exe'
+if (-not (Test-Path -LiteralPath $headroomExecutable -PathType Leaf)) {
+    throw 'Build the desktop app first: npm.cmd run build:desktop'
+}
+
+# Ask the Windows desktop to launch the tray. Start-Process/start would inherit
+# the calling terminal's job, which can be terminated when Codex exits.
+# -Toolbar remains accepted for existing shortcuts; the tray opens it by default.
+$headroomArguments = if ($Background) { '--background' } else { '' }
+$headroomWindowStyle = if ($Background) { 0 } else { 1 }
+$headroomShell = New-Object -ComObject Shell.Application
+$headroomWindows = $null
+$headroomDesktop = $null
+$headroomDocument = $null
+$headroomDesktopShell = $null
 try {
-    $headroomResponse = Invoke-RestMethod -Uri "$headroomUrl/api/dashboard" -TimeoutSec 2
-    $headroomRunning = $null -ne $headroomResponse.providers
-} catch {}
-if (-not $headroomRunning) {
-    $headroomNode = (Get-Command node.exe -ErrorAction Stop).Source
-    Start-Process -FilePath $headroomNode -ArgumentList 'server.mjs' -WorkingDirectory $headroomRoot -WindowStyle Hidden
-    for ($headroomAttempt = 0; $headroomAttempt -lt 20; $headroomAttempt++) {
-        Start-Sleep -Milliseconds 250
-        try {
-            $headroomResponse = Invoke-RestMethod -Uri "$headroomUrl/api/dashboard" -TimeoutSec 1
-            $headroomRunning = $null -ne $headroomResponse.providers
-            if ($headroomRunning) { break }
-        } catch {}
+    # Shell.Application alone can execute inside this caller. Get the existing
+    # desktop's automation object so explorer.exe actually owns the new process.
+    $headroomWindows = $headroomShell.Windows()
+    $headroomDesktopHandle = 0
+    $headroomDesktop = $headroomWindows.FindWindowSW(0, 0, 8, [ref]$headroomDesktopHandle, 1)
+    if ($null -eq $headroomDesktop) { throw 'Windows desktop is unavailable. Open the app from File Explorer.' }
+    $headroomDocument = $headroomDesktop.Document
+    $headroomDesktopShell = $headroomDocument.Application
+    $headroomDesktopShell.ShellExecute($headroomExecutable, $headroomArguments, $PSScriptRoot, 'open', $headroomWindowStyle)
+} finally {
+    foreach ($headroomComObject in @($headroomDesktopShell, $headroomDocument, $headroomDesktop, $headroomWindows, $headroomShell)) {
+        if ($null -ne $headroomComObject) { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($headroomComObject) }
     }
 }
-if (-not $headroomRunning) { throw 'AI head-up dispaly 启动失败。请在项目目录运行 node server.mjs 查看错误。' }
-if ($Toolbar) {
-    $headroomEdge = Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'
-    if (-not (Test-Path -LiteralPath $headroomEdge)) { $headroomEdge = Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe' }
-    if (-not (Test-Path -LiteralPath $headroomEdge)) { throw '需要已安装 AI head-up dispaly 扩展的 Microsoft Edge。' }
-    # Reuse the user's normal Edge profile, so existing extension pairing and logins work.
-    Start-Process -FilePath $headroomEdge -ArgumentList @('--app=http://127.0.0.1:4317/toolbar','--window-size=440,740')
-} else { Start-Process $headroomUrl }
